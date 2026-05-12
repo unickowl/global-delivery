@@ -716,7 +716,137 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 @keyframes flightPanelIn { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes sparklineShift { from { background-position: 0 0, 0 0; } to { background-position: -180% 0, 0 0; } }
 
-/* ===== Section 12 — Responsive Breakpoints ===== */
+/* ===== Section 12 — Arc Overlay ===== */
+.arc-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ===== Section 13 — Globe Settings ===== */
+.globe-settings {
+  position: absolute;
+  bottom: 46px;
+  left: 16px;
+  z-index: 15;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  color: var(--label-color);
+  cursor: pointer;
+  transition: border-color 180ms ease, color 180ms ease;
+}
+
+.settings-toggle:hover {
+  border-color: rgba(125, 246, 255, 0.4);
+  color: var(--hud-cyan);
+}
+
+.settings-panel {
+  position: absolute;
+  bottom: 36px;
+  left: 0;
+  width: 220px;
+  padding: 14px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+  backdrop-filter: blur(16px);
+  font-size: 11px;
+}
+
+.settings-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(125, 246, 255, 0.3), transparent);
+}
+
+.settings-title {
+  font-size: 9px;
+  color: var(--label-color);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin-bottom: 12px;
+}
+
+.settings-row {
+  margin-bottom: 10px;
+}
+
+.settings-row-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.settings-row-label {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.settings-row-value {
+  font-size: 10px;
+  color: var(--hud-cyan);
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  background: rgba(125, 246, 255, 0.12);
+  outline: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.settings-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  background: var(--hud-cyan);
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(125, 246, 255, 0.4);
+  cursor: pointer;
+}
+
+.settings-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  background: var(--hud-cyan);
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(125, 246, 255, 0.4);
+  cursor: pointer;
+}
+
+.settings-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.settings-toggle-row input[type="checkbox"] {
+  accent-color: var(--hud-cyan);
+  cursor: pointer;
+}
+
+/* ===== Section 14 — Responsive Breakpoints ===== */
 @media (max-width: 1120px) {
   .panel-transactions { top: auto; bottom: 70px; right: 16px; max-height: 40vh; overflow-y: auto; }
   .panel-metrics { width: 130px; }
