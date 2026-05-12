@@ -23,6 +23,9 @@ importers:
       react-dom:
         specifier: latest
         version: 19.2.6(react@19.2.6)
+      three:
+        specifier: ^0.184.0
+        version: 0.184.0
     devDependencies:
       rolldown-vite:
         specifier: latest
@@ -429,6 +432,9 @@ packages:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
 
+  three@0.184.0:
+    resolution: {integrity: sha512-wtTRjG92pM5eUg/KuUnHsqSAlPM296brTOcLgMRqEeylYTh/CdtvKUvCyyCQTzFuStieWxvZb8mVTMvdPyUpxg==}
+
   tinyglobby@0.2.16:
     resolution: {integrity: sha512-pn99VhoACYR8nFHhxqix+uvsbXineAasWm5ojXoN8xEwK5Kd3/TrhNn1wByuD52UxWRLy8pu+kRMniEi6Eq9Zg==}
     engines: {node: '>=12.0.0'}
@@ -768,6 +774,8 @@ snapshots:
   scheduler@0.27.0: {}
 
   source-map-js@1.2.1: {}
+
+  three@0.184.0: {}
 
   tinyglobby@0.2.16:
     dependencies:

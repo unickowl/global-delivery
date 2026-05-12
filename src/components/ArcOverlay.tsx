@@ -22,6 +22,8 @@ export type GlobeSettingsState = {
   largeGlow: number
   largeDotScale: number
   largeFlightSpeed: number
+  surfaceBrightness: number
+  landBrightness: number
 }
 
 type ArcOverlayProps = {

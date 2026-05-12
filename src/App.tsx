@@ -8,7 +8,8 @@ import {
   Lock,
   ShieldCheck,
 } from "lucide-react"
-import { GlobeCanvas } from "./components/GlobeCanvas"
+import { GlobeCanvas as CanvasGlobeCanvas } from "./components/GlobeCanvas"
+import { ThreeGlobeCanvas } from "./components/ThreeGlobeCanvas"
 import { ArcOverlay, type GlobeSettingsState } from "./components/ArcOverlay"
 import { GlobeSettings } from "./components/GlobeSettings"
 import { transactions as baseTransactions, type Transaction } from "./data/transactions"
@@ -16,6 +17,7 @@ import { useLiveDashboard } from "./hooks/useLiveDashboard"
 import { cn, formatCompactMoney, formatEta, formatMoney } from "./lib/utils"
 
 type Mode = "monitor" | "focus" | "flight" | "success"
+export type GlobeRenderer = "canvas" | "three"
 
 const stages = [
   { label: "Quote locked", icon: Lock },
@@ -159,7 +161,7 @@ function NervOverlay({
 }
 
 const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
-  arcHeight: 0.85,
+  arcHeight: 0.2,
   rotateSpeed: 0.003,
   arcBrightness: 0.5,
   showGrid: false,
@@ -177,6 +179,8 @@ const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
   largeGlow: 1,
   largeDotScale: 1,
   largeFlightSpeed: 1,
+  surfaceBrightness: 1.75,
+  landBrightness: 1.65,
 }
 
 export function App() {
@@ -185,6 +189,7 @@ export function App() {
   const [mode, setMode] = useState<Mode>("monitor")
   const [flightStartedAt, setFlightStartedAt] = useState<number | null>(null)
   const [globeSettings, setGlobeSettings] = useState<GlobeSettingsState>(DEFAULT_GLOBE_SETTINGS)
+  const [globeRenderer, setGlobeRenderer] = useState<GlobeRenderer>("three")
   const resetTimerRef = useRef<number | null>(null)
   const phiRef = useRef(0)
   const thetaRef = useRef(0.22)
@@ -230,12 +235,13 @@ export function App() {
   }, [])
 
   const isFlying = mode === "flight" || mode === "success"
+  const GlobeRendererComponent = globeRenderer === "three" ? ThreeGlobeCanvas : CanvasGlobeCanvas
 
   return (
     <main className={cn("app-shell", isFlying && "is-flying", isFlying && "is-nerv")}>
       {/* Globe fills entire viewport */}
       <div className="globe-stage">
-        <GlobeCanvas
+        <GlobeRendererComponent
           transactions={live.transactions}
           selected={selected}
           mode={mode}
@@ -356,7 +362,12 @@ export function App() {
       </div>
 
       {/* Globe Settings Panel */}
-      <GlobeSettings settings={globeSettings} onChange={setGlobeSettings} />
+      <GlobeSettings
+        settings={globeSettings}
+        onChange={setGlobeSettings}
+        renderer={globeRenderer}
+        onRendererChange={setGlobeRenderer}
+      />
 
       {/* NERV Alert Overlay */}
       <NervOverlay
