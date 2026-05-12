@@ -2,7 +2,7 @@ import { type CSSProperties, useEffect, useMemo, useRef } from "react"
 import createGlobe, { type Arc, type Globe, type Marker } from "cobe"
 import type { Transaction } from "../data/transactions"
 
-type GlobeMode = "monitor" | "flight" | "success"
+type GlobeMode = "monitor" | "focus" | "flight" | "success"
 
 type GlobeCanvasProps = {
   transactions: Transaction[]
@@ -68,73 +68,92 @@ function drawFlightScene(
   selected: Transaction,
 ) {
   const cx = w * 0.5
-  const cy = h * (0.46 - progress * 0.08)
-  const speed = now * 0.0018
-  const arrival = Math.max(0, (progress - 0.74) / 0.26)
+  const cy = h * 0.46
+  const speed = now * 0.002
 
-  const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.76)
-  bg.addColorStop(0, "rgba(24, 210, 226, 0.22)")
-  bg.addColorStop(0.42, "rgba(3, 19, 28, 0.96)")
-  bg.addColorStop(1, "rgba(2, 5, 8, 1)")
+  // Dark red background
+  const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.7)
+  bg.addColorStop(0, "rgba(255, 40, 30, 0.12)")
+  bg.addColorStop(0.4, "rgba(10, 4, 6, 0.95)")
+  bg.addColorStop(1, "rgba(6, 2, 3, 1)")
   ctx.fillStyle = bg
   ctx.fillRect(0, 0, w, h)
 
   ctx.save()
   ctx.globalCompositeOperation = "lighter"
-  for (let i = 0; i < 42; i += 1) {
-    const lane = (i / 42) * Math.PI * 2
-    const phase = (speed + i * 0.071 + progress * 3.6) % 1
-    const near = 0.08 + phase * 1.18
-    const far = near + 0.12
-    const curve = Math.sin(progress * Math.PI + i) * 80
-    const x1 = cx + Math.cos(lane) * near * w * 0.46 + curve * near
-    const y1 = cy + Math.sin(lane) * near * h * 0.35 + progress * h * 0.08
-    const x2 = cx + Math.cos(lane) * far * w * 0.52 + curve * far
-    const y2 = cy + Math.sin(lane) * far * h * 0.42 + progress * h * 0.1
-    const alpha = Math.max(0, 1 - near) * 0.65
 
-    ctx.strokeStyle = i % 3 === 0 ? `rgba(74, 222, 128, ${alpha})` : `rgba(125, 246, 255, ${alpha})`
-    ctx.lineWidth = 1 + near * 5
+  // Converging tunnel rings
+  const ringCount = 8
+  for (let i = 0; i < ringCount; i++) {
+    const phase = ((speed * 0.5 + i / ringCount + progress * 2) % 1)
+    const radius = (1 - phase) * Math.max(w, h) * 0.45
+    if (radius < 5) continue
+    const alpha = phase * 0.4 * (1 - phase)
+    ctx.strokeStyle = `rgba(255, 60, 40, ${alpha})`
+    ctx.lineWidth = 1 + phase * 3
     ctx.beginPath()
-    ctx.moveTo(x1, y1)
-    ctx.lineTo(x2, y2)
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2)
     ctx.stroke()
   }
 
-  const routeGradient = ctx.createLinearGradient(cx, h, cx, cy)
-  routeGradient.addColorStop(0, "rgba(74, 222, 128, 0)")
-  routeGradient.addColorStop(0.42, "rgba(125, 246, 255, 0.72)")
-  routeGradient.addColorStop(1, "rgba(255, 255, 255, 0.95)")
-  ctx.strokeStyle = routeGradient
-  ctx.lineWidth = 5
-  ctx.shadowBlur = 28
-  ctx.shadowColor = "rgba(125, 246, 255, 0.78)"
-  ctx.beginPath()
-  ctx.moveTo(cx - w * 0.2, h + 80)
-  ctx.bezierCurveTo(cx - w * 0.05, h * 0.72, cx + w * 0.16, h * 0.58, cx, cy)
-  ctx.stroke()
-  ctx.shadowBlur = 0
+  // Warp streaks (radial lines converging inward)
+  for (let i = 0; i < 36; i++) {
+    const angle = (i / 36) * Math.PI * 2
+    const phase = (speed + i * 0.09 + progress * 3) % 1
+    const innerR = 20 + phase * 60
+    const outerR = innerR + 40 + (1 - phase) * 200
+    const alpha = (1 - phase) * 0.3
+    ctx.strokeStyle = i % 4 === 0
+      ? `rgba(255, 80, 60, ${alpha})`
+      : `rgba(255, 180, 160, ${alpha * 0.5})`
+    ctx.lineWidth = 1 + (1 - phase) * 2
+    ctx.beginPath()
+    ctx.moveTo(cx + Math.cos(angle) * innerR, cy + Math.sin(angle) * innerR)
+    ctx.lineTo(cx + Math.cos(angle) * outerR, cy + Math.sin(angle) * outerR)
+    ctx.stroke()
+  }
 
-  drawGlow(ctx, cx, cy, 30 + arrival * 160 + success * 120, `rgba(74, 222, 128, ${0.3 + arrival * 0.55})`)
-  ctx.strokeStyle = `rgba(74, 222, 128, ${0.35 + arrival * 0.5})`
-  ctx.lineWidth = 2
-  ctx.beginPath()
-  ctx.arc(cx, cy, 30 + arrival * 65, 0, Math.PI * 2)
-  ctx.stroke()
-  ctx.restore()
-
-  ctx.fillStyle = "rgba(230, 255, 255, 0.92)"
-  ctx.font = "700 13px Inter, system-ui"
-  ctx.textAlign = "center"
-  ctx.fillText(selected.target.city.toUpperCase(), cx, cy - 48 - arrival * 26)
-  ctx.fillStyle = "rgba(125, 246, 255, 0.68)"
-  ctx.font = "500 12px Inter, system-ui"
-  ctx.fillText(`${Math.round(progress * 100)}% ROUTE TRAVERSED`, cx, h - 38)
+  // Center convergence glow
+  const arrival = Math.max(0, (progress - 0.7) / 0.3)
+  const glowR = 20 + arrival * 80 + success * 120
 
   if (success > 0) {
+    // Green success burst
+    drawGlow(ctx, cx, cy, glowR, `rgba(74, 222, 128, ${0.4 + success * 0.5})`)
+  } else {
+    // Red convergence
+    drawGlow(ctx, cx, cy, glowR, `rgba(255, 60, 40, ${0.2 + arrival * 0.5})`)
+  }
+
+  // Center dot
+  ctx.fillStyle = success > 0
+    ? `rgba(74, 222, 128, ${0.8 + success * 0.2})`
+    : `rgba(255, 60, 40, ${0.5 + arrival * 0.5})`
+  ctx.beginPath()
+  ctx.arc(cx, cy, 4 + arrival * 8 + success * 12, 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.restore()
+
+  // Target city text
+  ctx.fillStyle = `rgba(255, 206, 200, ${0.7 + arrival * 0.3})`
+  ctx.font = "800 14px 'JetBrains Mono', monospace"
+  ctx.textAlign = "center"
+  ctx.fillText(selected.target.city.toUpperCase(), cx, cy - 50 - arrival * 20)
+
+  // Progress text
+  ctx.fillStyle = "rgba(255, 150, 130, 0.5)"
+  ctx.font = "500 11px 'JetBrains Mono', monospace"
+  ctx.fillText(`${Math.round(progress * 100)}% ROUTE TRAVERSED`, cx, h - 50)
+
+  // Success text
+  if (success > 0) {
     ctx.fillStyle = `rgba(74, 222, 128, ${success})`
-    ctx.font = "800 30px Inter, system-ui"
-    ctx.fillText("SETTLEMENT CONFIRMED", cx, cy + 112)
+    ctx.font = "800 28px 'JetBrains Mono', monospace"
+    ctx.fillText("SETTLEMENT CONFIRMED", cx, cy + 80)
+    ctx.fillStyle = `rgba(74, 222, 128, ${success * 0.7})`
+    ctx.font = "700 18px 'JetBrains Mono', monospace"
+    ctx.fillText("決済完了", cx, cy + 110)
   }
 }
 
@@ -294,7 +313,8 @@ export function GlobeCanvas({ transactions, selected, mode, flightStartedAt, onF
         const progress = clamp(local, 0, 1)
         const fadeIn = clamp(progress / 0.16, 0, 1)
         const fadeOut = clamp((1 - progress) / 0.22, 0, 1)
-        const alpha = selectedTx ? 1 : fadeIn * fadeOut
+        const dimmed = current.mode === "focus" && !selectedTx
+        const alpha = selectedTx ? 1 : dimmed ? fadeIn * fadeOut * 0.2 : fadeIn * fadeOut
         const segmentCount = Math.round(3 + weight * 3 + (selectedTx ? 1 : 0))
         const tailLength = 0.18 + weight * 0.2
         const fromLocation: [number, number] = [tx.source.lat, tx.source.lng]
@@ -349,18 +369,31 @@ export function GlobeCanvas({ transactions, selected, mode, flightStartedAt, onF
 
       const drag = dragRef.current
       if (!drag.active) {
-        phiRef.current += current.mode === "monitor" ? 0.0045 + drag.velocity : 0.0012
+        if (current.mode === "focus") {
+          // Smoothly rotate to center the selected transaction's route midpoint
+          const midLng = (current.selected.source.lng + current.selected.target.lng) / 2
+          const targetPhi = -midLng * (Math.PI / 180) + Math.PI
+          let delta = targetPhi - phiRef.current
+          // Normalize to [-PI, PI]
+          delta = ((delta + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI
+          phiRef.current += delta * 0.04
+        } else if (current.mode === "monitor") {
+          phiRef.current += 0.0045 + drag.velocity
+        } else {
+          phiRef.current += 0.0012
+        }
         drag.velocity *= 0.94
         if (Math.abs(drag.velocity) < 0.0001) drag.velocity = 0
       }
+      const isFlying = current.mode === "flight" || current.mode === "success"
       globe.update({
         phi: phiRef.current,
-        theta: current.mode === "monitor" ? 0.22 : 0.34,
-        scale: current.mode === "monitor" ? 1 : 1.12,
+        theta: current.mode === "monitor" || current.mode === "focus" ? 0.22 : 0.34,
+        scale: current.mode === "focus" ? 1.05 : isFlying ? 1.12 : 1,
         markers: activeMarkers,
         arcs: activeArcs,
-        arcWidth: current.mode === "monitor" ? 1.22 : 1.35,
-        arcHeight: current.mode === "monitor" ? 0.34 : 0.52,
+        arcWidth: isFlying ? 1.35 : current.mode === "focus" ? 1.4 : 1.22,
+        arcHeight: isFlying ? 0.52 : current.mode === "focus" ? 0.42 : 0.34,
       })
       raf = requestAnimationFrame(animate)
     }
@@ -401,7 +434,7 @@ export function GlobeCanvas({ transactions, selected, mode, flightStartedAt, onF
       const rawFlight = currentMode === "flight" || currentMode === "success" ? Math.min(elapsed / FLIGHT_DURATION, 1) : 0
       const success = currentMode === "success" ? Math.min((elapsed - FLIGHT_DURATION) / 1200, 1) : 0
 
-      if (currentMode !== "monitor" && rawFlight > 0.08) {
+      if ((currentMode === "flight" || currentMode === "success") && rawFlight > 0.08) {
         drawFlightScene(ctx, width, height, now, easeInOut((rawFlight - 0.08) / 0.92), success, currentSelected)
       }
 
