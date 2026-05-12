@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>FlowSphere — Monitor Redesign Proposal</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{font-size:14px;}
+  body{
+    background:#04080c;
+    color:#d0eef5;
+    font-family:'Inter',system-ui,sans-serif;
+    overflow-x:hidden;
+  }
+
+  /* ========== SECTION HEADER ========== */
+  .proposal-header{
+    padding:48px 40px 32px;
+    border-bottom:1px solid rgba(0,200,255,0.1);
+    background:linear-gradient(180deg,rgba(0,20,30,0.6),transparent);
+  }
+  .proposal-header h1{
+    font-family:'JetBrains Mono',monospace;
+    font-size:28px;
+    color:#7df6ff;
+    text-shadow:0 0 30px rgba(125,246,255,0.3);
+    margin-bottom:8px;
+  }
+  .proposal-header p{
+    color:rgba(200,230,240,0.5);
+    font-size:13px;
+    font-family:'JetBrains Mono',monospace;
+  }
+
+  /* ========== MOCKUP FRAME ========== */
+  .mockup-section{
+    padding:40px;
+  }
+  .section-label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:rgba(125,246,255,0.5);
+    text-transform:uppercase;
+    letter-spacing:0.15em;
+    margin-bottom:16px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .section-label::before{
+    content:'';display:block;width:12px;height:1px;background:#7df6ff;
+  }
+
+  .mockup-frame{
+    position:relative;
+    width:100%;
+    aspect-ratio:16/9;
+    border:1px solid rgba(0,200,255,0.15);
+    background:#060a10;
+    overflow:hidden;
+    box-shadow:0 0 80px rgba(0,180,220,0.06),inset 0 0 120px rgba(0,20,40,0.3);
+  }
+
+  /* ========== MONITOR MODE ========== */
+  .monitor-bg{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(circle at 45% 45%,rgba(0,60,80,0.12),transparent 55%),
+      radial-gradient(circle at 80% 20%,rgba(0,40,60,0.08),transparent 30%),
+      #060a10;
+  }
+
+  /* Hex grid */
+  .hex-grid{
+    position:absolute;inset:0;opacity:0.025;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='104'%3E%3Cpolygon points='30,0 60,26 60,78 30,104 0,78 0,26' fill='none' stroke='%2300ccff' stroke-width='0.5'/%3E%3C/svg%3E");
+    background-size:60px 104px;
+  }
+
+  /* Scan lines */
+  .scan-lines{
+    position:absolute;inset:0;
+    background:repeating-linear-gradient(180deg,rgba(255,255,255,0.015) 0 1px,transparent 1px 4px);
+    pointer-events:none;
+    mix-blend-mode:screen;
+  }
+
+  /* Globe placeholder */
+  .globe-area{
+    position:absolute;
+    top:50%;left:46%;
+    transform:translate(-50%,-50%);
+    width:52%;
+    aspect-ratio:1;
+  }
+  .globe-circle{
+    width:100%;height:100%;
+    border-radius:50%;
+    background:radial-gradient(circle at 38% 32%,#1e4a5a,#0e2430 50%,#080e14 80%);
+    border:1px solid rgba(0,200,255,0.12);
+    box-shadow:
+      0 0 100px rgba(0,180,220,0.08),
+      0 0 200px rgba(0,120,160,0.04),
+      inset 0 0 60px rgba(0,40,60,0.2);
+    position:relative;
+  }
+  .globe-circle::after{
+    content:'';position:absolute;inset:0;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,rgba(125,246,255,0.06),transparent 40%);
+  }
+  /* Orbit rings */
+  .orbit{
+    position:absolute;
+    top:50%;left:50%;
+    border-radius:50%;
+    border:1px dashed rgba(0,200,255,0.06);
+    transform:translate(-50%,-50%);
+  }
+  .orbit-1{width:110%;height:110%;}
+  .orbit-2{width:128%;height:128%;border-style:dotted;opacity:0.5;}
+
+  /* Arc paths on globe */
+  .arc-path{
+    position:absolute;
+    border:none;
+    border-top:2px solid;
+    border-radius:50%;
+    opacity:0.6;
+  }
+  .arc-1{
+    width:45%;height:20%;top:30%;left:25%;
+    border-color:rgba(125,246,255,0.5);
+    transform:rotate(-15deg);
+    box-shadow:0 0 12px rgba(125,246,255,0.3);
+  }
+  .arc-2{
+    width:30%;height:15%;top:50%;left:40%;
+    border-color:rgba(74,222,128,0.5);
+    transform:rotate(10deg);
+    box-shadow:0 0 12px rgba(74,222,128,0.3);
+  }
+  .arc-3{
+    width:35%;height:18%;top:38%;left:15%;
+    border-color:rgba(247,255,77,0.4);
+    transform:rotate(-25deg);
+    box-shadow:0 0 8px rgba(247,255,77,0.2);
+  }
+
+  /* Dot markers on globe */
+  .marker-dot{
+    position:absolute;
+    width:6px;height:6px;
+    border-radius:50%;
+    background:#7df6ff;
+    box-shadow:0 0 10px #7df6ff,0 0 20px rgba(125,246,255,0.3);
+  }
+  .marker-dot.green{background:#4ade80;box-shadow:0 0 10px #4ade80,0 0 20px rgba(74,222,128,0.3);}
+  .md-1{top:28%;left:30%;}
+  .md-2{top:42%;left:68%;}
+  .md-3{top:55%;left:25%;}
+  .md-4{top:35%;left:52%;background:#f7ff4d;box-shadow:0 0 10px #f7ff4d;}
+  .md-5{top:60%;left:55%;}
+
+  /* ========== HUD PANELS ========== */
+  .hud-panel{
+    position:absolute;
+    border:1px solid rgba(0,200,255,0.14);
+    background:rgba(4,10,18,0.72);
+    backdrop-filter:blur(12px);
+    font-family:'JetBrains Mono',monospace;
+    box-shadow:0 0 30px rgba(0,0,0,0.3),inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+  .hud-panel::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(125,246,255,0.3),transparent);
+  }
+  .hud-label{
+    font-size:8px;
+    color:rgba(125,246,255,0.45);
+    text-transform:uppercase;
+    letter-spacing:0.14em;
+    margin-bottom:6px;
+  }
+
+  /* Top-left: System status */
+  .panel-system{
+    top:16px;left:16px;
+    padding:12px 16px;
+    display:flex;align-items:center;gap:10px;
+  }
+  .system-dot{
+    width:7px;height:7px;border-radius:50%;
+    background:#4ade80;
+    box-shadow:0 0 12px #4ade80;
+    animation:pulse 2s ease infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
+  .system-text{font-size:9px;color:rgba(125,246,255,0.6);}
+  .system-text strong{color:#e8fbff;font-weight:600;}
+
+  /* Top-right: MAGI status */
+  .panel-magi{
+    top:16px;right:16px;
+    padding:10px 14px;
+    display:flex;gap:12px;align-items:center;
+  }
+  .magi-node{
+    text-align:center;
+    padding:4px 10px;
+    border:1px solid rgba(0,200,255,0.1);
+    background:rgba(0,200,255,0.03);
+  }
+  .magi-node .name{font-size:7px;color:rgba(125,246,255,0.4);display:block;}
+  .magi-node .status-val{font-size:10px;color:#4ade80;font-weight:700;display:block;margin-top:2px;}
+
+  /* Left side: Network metrics */
+  .panel-metrics{
+    top:64px;left:16px;width:140px;
+    padding:12px;
+  }
+  .metric-item{
+    padding:8px 0;
+    border-bottom:1px solid rgba(0,200,255,0.06);
+  }
+  .metric-item:last-child{border:none;}
+  .metric-val{
+    font-size:18px;font-weight:700;
+    color:#e8fbff;
+    text-shadow:0 0 15px rgba(125,246,255,0.25);
+  }
+  .metric-val.green{color:#4ade80;text-shadow:0 0 15px rgba(74,222,128,0.25);}
+  .metric-change{
+    font-size:9px;color:rgba(74,222,128,0.7);margin-top:2px;
+  }
+
+  /* Left bottom: Liquidity */
+  .panel-liquidity{
+    bottom:80px;left:16px;width:140px;
+    padding:12px;
+  }
+  .pool-item{margin:8px 0;}
+  .pool-name{font-size:8px;color:rgba(125,246,255,0.4);display:flex;justify-content:space-between;}
+  .pool-bar-bg{
+    height:3px;margin-top:3px;
+    background:rgba(255,255,255,0.06);
+    overflow:hidden;
+  }
+  .pool-bar-fill{
+    height:100%;
+    background:linear-gradient(90deg,#4ade80,#7df6ff);
+    box-shadow:0 0 8px rgba(125,246,255,0.3);
+  }
+
+  /* Right side: Transaction queue */
+  .panel-transactions{
+    top:64px;right:16px;width:210px;
+    padding:12px;
+  }
+  .tx-item{
+    padding:8px;
+    margin:4px 0;
+    border:1px solid rgba(0,200,255,0.08);
+    background:rgba(0,200,255,0.02);
+    cursor:pointer;
+    transition:all 180ms ease;
+  }
+  .tx-item:hover,.tx-item.active{
+    border-color:rgba(125,246,255,0.3);
+    background:rgba(125,246,255,0.06);
+    box-shadow:0 0 20px rgba(125,246,255,0.06);
+  }
+  .tx-item.active{
+    border-left:2px solid #7df6ff;
+  }
+  .tx-id{font-size:9px;color:#e8fbff;font-weight:600;}
+  .tx-route-text{font-size:8px;color:rgba(125,246,255,0.5);margin-top:2px;}
+  .tx-status-badge{
+    display:inline-block;
+    padding:1px 5px;
+    font-size:7px;
+    text-transform:uppercase;
+    border:1px solid currentColor;
+    margin-left:6px;
+  }
+  .tx-status-badge.routing{color:#7df6ff;}
+  .tx-status-badge.pending{color:#f7ff4d;}
+  .tx-status-badge.settled{color:#4ade80;}
+
+  /* Bottom center: Selected flow detail + ENGAGE */
+  .panel-detail{
+    bottom:16px;left:50%;transform:translateX(-50%);
+    width:min(580px,70%);
+    padding:12px 20px;
+    display:flex;align-items:center;gap:20px;
+  }
+  .detail-route{
+    flex:1;
+  }
+  .detail-route .from-to{
+    font-size:13px;font-weight:700;color:#e8fbff;
+    display:flex;align-items:center;gap:8px;
+  }
+  .detail-route .from-to .arrow{color:rgba(125,246,255,0.4);}
+  .detail-amounts{
+    font-size:9px;color:rgba(125,246,255,0.5);margin-top:4px;
+    display:flex;gap:16px;
+  }
+  .detail-stats{
+    display:flex;gap:16px;
+  }
+  .detail-stat{text-align:center;}
+  .detail-stat .ds-label{font-size:7px;color:rgba(125,246,255,0.35);display:block;}
+  .detail-stat .ds-val{font-size:11px;color:#e8fbff;font-weight:600;display:block;margin-top:2px;}
+  .detail-stat .ds-val.risk-low{color:#4ade80;}
+
+  .engage-btn{
+    padding:10px 20px;
+    border:1px solid rgba(255,61,60,0.4);
+    background:rgba(255,20,20,0.08);
+    color:#ff6b6b;
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    cursor:pointer;
+    transition:all 250ms ease;
+    position:relative;
+    overflow:hidden;
+    white-space:nowrap;
+  }
+  .engage-btn::before{
+    content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(255,60,60,0.15),transparent);
+    animation:engageSweep 2s linear infinite;
+  }
+  @keyframes engageSweep{to{left:100%;}}
+  .engage-btn:hover{
+    border-color:rgba(255,80,80,0.7);
+    background:rgba(255,20,20,0.18);
+    box-shadow:0 0 30px rgba(255,60,60,0.15);
+    color:#ff8a8a;
+  }
+
+  /* Bottom-left: coordinates */
+  .panel-coords{
+    bottom:16px;left:16px;
+    padding:8px 12px;
+    font-size:8px;
+    color:rgba(125,246,255,0.3);
+  }
+
+  /* ========== NERV ALERT MODE ========== */
+  .nerv-section{
+    margin-top:60px;
+  }
+  .nerv-frame{
+    position:relative;
+    width:100%;
+    aspect-ratio:16/9;
+    border:1px solid rgba(255,40,40,0.25);
+    background:#0a0406;
+    overflow:hidden;
+    box-shadow:0 0 80px rgba(255,40,40,0.06);
+  }
+  .nerv-bg{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(circle at 50% 40%,rgba(255,30,30,0.06),transparent 50%),
+      radial-gradient(circle at 20% 80%,rgba(255,40,20,0.04),transparent 30%),
+      #0a0406;
+  }
+  .nerv-scan{
+    position:absolute;inset:0;
+    background:repeating-linear-gradient(180deg,rgba(255,60,60,0.02) 0 1px,transparent 1px 3px);
+    pointer-events:none;
+    animation:nervFlicker 0.1s step-end infinite alternate;
+  }
+  @keyframes nervFlicker{0%{opacity:0.7;}100%{opacity:1;}}
+
+  /* Warning bars */
+  .nerv-warn-top{
+    position:absolute;top:0;left:0;right:0;height:36px;
+    background:repeating-linear-gradient(90deg,rgba(255,40,20,0.15) 0 8px,transparent 8px 16px);
+    border-bottom:2px solid rgba(255,40,20,0.5);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;font-weight:800;
+    color:#ff4a3a;
+    letter-spacing:0.2em;
+    text-shadow:0 0 20px rgba(255,60,40,0.5);
+    animation:warnBlink 1s step-end infinite;
+  }
+  @keyframes warnBlink{0%,70%{opacity:1;}71%,100%{opacity:0.3;}}
+
+  .nerv-warn-bottom{
+    position:absolute;bottom:0;left:0;right:0;height:28px;
+    background:rgba(255,20,10,0.06);
+    border-top:1px solid rgba(255,40,20,0.3);
+    display:flex;align-items:center;justify-content:center;gap:24px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:8px;color:rgba(255,120,100,0.6);
+    letter-spacing:0.1em;
+  }
+
+  /* Center tunnel / route viz area */
+  .nerv-center{
+    position:absolute;
+    top:50%;left:50%;transform:translate(-50%,-50%);
+    width:240px;height:240px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .tunnel-ring{
+    position:absolute;
+    border:1px solid rgba(255,60,40,0.15);
+    border-radius:50%;
+    top:50%;left:50%;transform:translate(-50%,-50%);
+  }
+  .tr-1{width:100%;height:100%;border-color:rgba(255,60,40,0.08);}
+  .tr-2{width:75%;height:75%;border-color:rgba(255,60,40,0.12);}
+  .tr-3{width:50%;height:50%;border-color:rgba(255,60,40,0.18);}
+  .tr-4{width:28%;height:28%;border-color:rgba(255,60,40,0.25);box-shadow:0 0 20px rgba(255,60,40,0.1);}
+  .nerv-convergence{
+    width:16px;height:16px;border-radius:50%;
+    background:#ff4a3a;
+    box-shadow:0 0 30px #ff4a3a,0 0 60px rgba(255,60,40,0.3);
+    position:relative;z-index:2;
+  }
+  .nerv-target-label{
+    position:absolute;
+    top:50%;left:50%;transform:translate(-50%,-50%) translateY(-80px);
+    font-family:'JetBrains Mono',monospace;
+    font-size:16px;font-weight:800;
+    color:#ffcec8;
+    text-shadow:0 0 20px rgba(255,60,40,0.4);
+    text-align:center;
+    z-index:2;
+  }
+  .nerv-target-sub{
+    display:block;
+    font-size:9px;font-weight:500;
+    color:rgba(255,150,130,0.6);
+    margin-top:4px;
+  }
+  .nerv-progress-label{
+    position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
+    font-family:'JetBrains Mono',monospace;
+    font-size:10px;
+    color:rgba(255,150,130,0.5);
+    z-index:2;
+  }
+
+  /* Side panels in NERV mode */
+  .nerv-panel{
+    position:absolute;
+    border:1px solid rgba(255,40,20,0.2);
+    background:rgba(10,4,6,0.8);
+    backdrop-filter:blur(8px);
+    padding:14px;
+    font-family:'JetBrains Mono',monospace;
+  }
+  .nerv-panel::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(255,60,40,0.4),transparent);
+  }
+  .nerv-panel-label{
+    font-size:7px;color:rgba(255,120,100,0.4);
+    text-transform:uppercase;letter-spacing:0.15em;
+    margin-bottom:8px;
+  }
+  .nerv-left{top:52px;left:20px;width:170px;}
+  .nerv-right{top:52px;right:20px;width:170px;}
+  .nerv-entity{font-size:14px;font-weight:700;color:#ffcec8;margin-bottom:4px;}
+  .nerv-loc{font-size:9px;color:rgba(255,150,130,0.5);}
+  .nerv-amount{
+    font-size:18px;font-weight:800;
+    color:#ff6b5a;
+    text-shadow:0 0 15px rgba(255,60,40,0.3);
+    margin-top:10px;
+  }
+
+  /* Stage strip */
+  .nerv-stages{
+    position:absolute;
+    top:44px;left:50%;transform:translateX(-50%);
+    display:flex;gap:4px;
+    z-index:3;
+  }
+  .nerv-stage{
+    padding:5px 8px;
+    border:1px solid rgba(255,60,40,0.12);
+    background:rgba(10,4,6,0.7);
+    font-family:'JetBrains Mono',monospace;
+    font-size:8px;
+    color:rgba(255,120,100,0.3);
+    display:flex;align-items:center;gap:4px;
+    white-space:nowrap;
+  }
+  .nerv-stage.active{
+    color:#ffcec8;
+    border-color:rgba(255,60,40,0.5);
+    box-shadow:0 0 15px rgba(255,60,40,0.1);
+  }
+  .nerv-stage .stage-dot{
+    width:4px;height:4px;border-radius:50%;
+    background:rgba(255,60,40,0.3);
+  }
+  .nerv-stage.active .stage-dot{
+    background:#ff4a3a;
+    box-shadow:0 0 6px #ff4a3a;
+  }
+
+  /* JP text decorations */
+  .jp-deco{
+    position:absolute;
+    font-family:'JetBrains Mono',monospace;
+    color:rgba(255,60,40,0.12);
+    font-size:11px;
+    writing-mode:vertical-rl;
+    letter-spacing:0.3em;
+  }
+  .jp-left{left:8px;top:50px;}
+  .jp-right{right:8px;bottom:40px;}
+
+  /* ========== DESCRIPTION SECTIONS ========== */
+  .desc-section{
+    padding:40px;
+    border-top:1px solid rgba(0,200,255,0.06);
+  }
+  .desc-section h3{
+    font-family:'JetBrains Mono',monospace;
+    font-size:15px;
+    color:#7df6ff;
+    margin-bottom:12px;
+  }
+  .desc-section p{
+    color:rgba(200,230,240,0.55);
+    font-size:13px;
+    line-height:1.7;
+    max-width:720px;
+  }
+  .desc-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:24px;
+    margin-top:20px;
+  }
+  .desc-card{
+    border:1px solid rgba(0,200,255,0.1);
+    background:rgba(0,10,20,0.4);
+    padding:16px;
+  }
+  .desc-card h4{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    color:#e8fbff;
+    margin-bottom:8px;
+  }
+  .desc-card p{
+    font-size:12px;
+    color:rgba(200,230,240,0.45);
+    line-height:1.6;
+  }
+  .tag{
+    display:inline-block;
+    padding:2px 8px;
+    border:1px solid;
+    font-family:'JetBrains Mono',monospace;
+    font-size:9px;
+    margin-right:6px;
+    margin-top:8px;
+  }
+  .tag-cyan{color:rgba(125,246,255,0.5);border-color:rgba(125,246,255,0.15);}
+  .tag-red{color:rgba(255,100,80,0.5);border-color:rgba(255,60,40,0.15);}
+  .tag-green{color:rgba(74,222,128,0.5);border-color:rgba(74,222,128,0.15);}
+</style>
+</head>
+<body>
+
+<!-- ==================== HEADER ==================== -->
+<div class="proposal-header">
+  <h1>FLOWSPHERE MONITOR // REDESIGN PROPOSAL</h1>
+  <p>MAGI COMMAND MODE → NERV ALERT MODE ▸ DUAL-STATE HUD SYSTEM</p>
+</div>
+
+<!-- ==================== MODE 1: MAGI MONITOR ==================== -->
+<div class="mockup-section">
+  <div class="section-label">Mode 01 — MAGI Monitor（平時監控）</div>
+  <div class="mockup-frame">
+    <div class="monitor-bg"></div>
+    <div class="hex-grid"></div>
+    <div class="scan-lines"></div>
+
+    <!-- Globe -->
+    <div class="globe-area">
+      <div class="globe-circle">
+        <div class="arc-path arc-1"></div>
+        <div class="arc-path arc-2"></div>
+        <div class="arc-path arc-3"></div>
+        <div class="marker-dot md-1"></div>
+        <div class="marker-dot green md-2"></div>
+        <div class="marker-dot md-3"></div>
+        <div class="marker-dot md-4"></div>
+        <div class="marker-dot green md-5"></div>
+      </div>
+      <div class="orbit orbit-1"></div>
+      <div class="orbit orbit-2"></div>
+    </div>
+
+    <!-- HUD: Top-left system -->
+    <div class="hud-panel panel-system">
+      <div class="system-dot"></div>
+      <div class="system-text">
+        <strong>FLOWSPHERE</strong> ▸ GLOBAL RAILS ONLINE
+      </div>
+    </div>
+
+    <!-- HUD: Top-right MAGI nodes -->
+    <div class="hud-panel panel-magi">
+      <div class="magi-node">
+        <span class="name">CASPER</span>
+        <span class="status-val">OK</span>
+      </div>
+      <div class="magi-node">
+        <span class="name">MELCHIOR</span>
+        <span class="status-val">OK</span>
+      </div>
+      <div class="magi-node">
+        <span class="name">BALTHASAR</span>
+        <span class="status-val">OK</span>
+      </div>
+    </div>
+
+    <!-- HUD: Left metrics -->
+    <div class="hud-panel panel-metrics">
+      <div class="hud-label">Network Load</div>
+      <div class="metric-item">
+        <div class="metric-val">$4.2M</div>
+        <div class="metric-change">+24.3% ▲</div>
+      </div>
+      <div class="metric-item">
+        <div class="hud-label" style="margin-bottom:3px;">Settlement</div>
+        <div class="metric-val" style="font-size:15px;">00:58</div>
+      </div>
+      <div class="metric-item">
+        <div class="hud-label" style="margin-bottom:3px;">Active Flows</div>
+        <div class="metric-val green" style="font-size:15px;">12</div>
+      </div>
+    </div>
+
+    <!-- HUD: Left bottom liquidity -->
+    <div class="hud-panel panel-liquidity">
+      <div class="hud-label">Liquidity Pools</div>
+      <div class="pool-item">
+        <div class="pool-name"><span>APAC PRIME</span><span>78%</span></div>
+        <div class="pool-bar-bg"><div class="pool-bar-fill" style="width:78%;"></div></div>
+      </div>
+      <div class="pool-item">
+        <div class="pool-name"><span>EU INSTANT</span><span>65%</span></div>
+        <div class="pool-bar-bg"><div class="pool-bar-fill" style="width:65%;"></div></div>
+      </div>
+      <div class="pool-item">
+        <div class="pool-name"><span>LATAM FLOW</span><span>82%</span></div>
+        <div class="pool-bar-bg"><div class="pool-bar-fill" style="width:82%;"></div></div>
+      </div>
+      <div class="pool-item">
+        <div class="pool-name"><span>MENA EXPRESS</span><span>71%</span></div>
+        <div class="pool-bar-bg"><div class="pool-bar-fill" style="width:71%;"></div></div>
+      </div>
+    </div>
+
+    <!-- HUD: Right transactions -->
+    <div class="hud-panel panel-transactions">
+      <div class="hud-label">Transaction Queue</div>
+      <div class="tx-item active">
+        <div><span class="tx-id">TX-8F31A9</span><span class="tx-status-badge routing">ROUTING</span></div>
+        <div class="tx-route-text">San Francisco → Singapore ▸ $420K</div>
+      </div>
+      <div class="tx-item">
+        <div><span class="tx-id">TX-1C72D4</span><span class="tx-status-badge pending">PENDING</span></div>
+        <div class="tx-route-text">London → Madrid ▸ $185K</div>
+      </div>
+      <div class="tx-item">
+        <div><span class="tx-id">TX-6B09E2</span><span class="tx-status-badge settled">SETTLED</span></div>
+        <div class="tx-route-text">Tokyo → Sydney ▸ ¥84M</div>
+      </div>
+      <div class="tx-item">
+        <div><span class="tx-id">TX-4A91C0</span><span class="tx-status-badge routing">ROUTING</span></div>
+        <div class="tx-route-text">São Paulo → Mexico City ▸ $95K</div>
+      </div>
+      <div class="tx-item">
+        <div><span class="tx-id">TX-9E64F7</span><span class="tx-status-badge pending">PENDING</span></div>
+        <div class="tx-route-text">Hong Kong → Dubai ▸ HK$3.1M</div>
+      </div>
+    </div>
+
+    <!-- HUD: Bottom detail bar -->
+    <div class="hud-panel panel-detail">
+      <div class="detail-route">
+        <div class="from-to">
+          <span>San Francisco</span>
+          <span class="arrow">→</span>
+          <span>Singapore</span>
+        </div>
+        <div class="detail-amounts">
+          <span>$420,000 USD</span>
+          <span style="color:rgba(125,246,255,0.3);">→</span>
+          <span>419,202 USDC</span>
+        </div>
+      </div>
+      <div class="detail-stats">
+        <div class="detail-stat">
+          <span class="ds-label">FX RATE</span>
+          <span class="ds-val">0.9981</span>
+        </div>
+        <div class="detail-stat">
+          <span class="ds-label">FEE</span>
+          <span class="ds-val">$798</span>
+        </div>
+        <div class="detail-stat">
+          <span class="ds-label">RAIL</span>
+          <span class="ds-val">WIRE</span>
+        </div>
+        <div class="detail-stat">
+          <span class="ds-label">RISK</span>
+          <span class="ds-val risk-low">18</span>
+        </div>
+      </div>
+      <button class="engage-btn">▶ ENGAGE</button>
+    </div>
+
+    <!-- Coordinates -->
+    <div class="hud-panel panel-coords">
+      PHI 0.224 ▸ θ 0.220 ▸ LAT 37.77 LNG -122.41
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODE 2: NERV ALERT ==================== -->
+<div class="mockup-section nerv-section">
+  <div class="section-label" style="color:rgba(255,100,80,0.5);">Mode 02 — NERV Alert（飛行追蹤）</div>
+  <div class="nerv-frame">
+    <div class="nerv-bg"></div>
+    <div class="nerv-scan"></div>
+
+    <!-- JP decorative text -->
+    <div class="jp-deco jp-left">緊急送金追跡中</div>
+    <div class="jp-deco jp-right">決済確認待機</div>
+
+    <!-- Warning bar -->
+    <div class="nerv-warn-top">⚠ SETTLEMENT TRACKING ACTIVE ⚠</div>
+    <div class="nerv-warn-bottom">
+      <span>CASPER: CONFIRMED</span>
+      <span>MELCHIOR: CONFIRMED</span>
+      <span>BALTHASAR: PROCESSING</span>
+    </div>
+
+    <!-- Stage strip -->
+    <div class="nerv-stages">
+      <div class="nerv-stage active"><div class="stage-dot"></div>QUOTE LOCKED</div>
+      <div class="nerv-stage active"><div class="stage-dot"></div>LIQUIDITY MATCHED</div>
+      <div class="nerv-stage active"><div class="stage-dot"></div>RAIL CONFIRMED</div>
+      <div class="nerv-stage"><div class="stage-dot"></div>KYT CLEARED</div>
+      <div class="nerv-stage"><div class="stage-dot"></div>SETTLEMENT FINAL</div>
+    </div>
+
+    <!-- Sender panel -->
+    <div class="nerv-panel nerv-left">
+      <div class="nerv-panel-label">Sender Validation</div>
+      <div class="nerv-entity">Meridian Treasury</div>
+      <div class="nerv-loc">San Francisco, US</div>
+      <div class="nerv-amount">$420,000</div>
+      <span class="tag tag-red">USD</span>
+      <span class="tag tag-red">WIRE</span>
+    </div>
+
+    <!-- Receiver panel -->
+    <div class="nerv-panel nerv-right">
+      <div class="nerv-panel-label">Receiver Settlement</div>
+      <div class="nerv-entity">Atlas Exchange</div>
+      <div class="nerv-loc">Singapore, SG</div>
+      <div class="nerv-amount">419,202 USDC</div>
+      <span class="tag tag-red">BASE</span>
+      <span class="tag tag-red">APAC PRIME</span>
+    </div>
+
+    <!-- Center convergence point -->
+    <div class="nerv-center">
+      <div class="tunnel-ring tr-1"></div>
+      <div class="tunnel-ring tr-2"></div>
+      <div class="tunnel-ring tr-3"></div>
+      <div class="tunnel-ring tr-4"></div>
+      <div class="nerv-convergence"></div>
+      <div class="nerv-target-label">
+        SINGAPORE
+        <span class="nerv-target-sub">RECEIVING NODE ▸ 62% ROUTE TRAVERSED</span>
+      </div>
+    </div>
+
+    <div class="nerv-progress-label">ROUTE PROGRESS ▸▸▸ 62%</div>
+  </div>
+</div>
+
+<!-- ==================== INTERACTION FLOW ==================== -->
+<div class="desc-section">
+  <h3>互動流程設計</h3>
+  <p>三階段互動模式，從平靜監控逐步升級到緊張的飛行追蹤。</p>
+  <div class="desc-grid">
+    <div class="desc-card">
+      <h4>① MAGI Monitor — 日常監控</h4>
+      <p>地球自動旋轉，弧線動畫持續播放。所有 HUD 面板半透明浮在地球上方。可拖曳旋轉地球。交易佇列即時更新。</p>
+      <span class="tag tag-cyan">自動旋轉</span>
+      <span class="tag tag-cyan">拖曳互動</span>
+      <span class="tag tag-cyan">即時數據</span>
+    </div>
+    <div class="desc-card">
+      <h4>② Focus Track — 焦點追蹤</h4>
+      <p>點擊交易 → 地球自動旋轉到該路線的中心位置 → 對應弧線高亮放大 → HUD 底部詳情欄更新 → 出現紅色 ENGAGE 按鈕。</p>
+      <span class="tag tag-cyan">地球旋轉</span>
+      <span class="tag tag-cyan">弧線高亮</span>
+      <span class="tag tag-green">ENGAGE 按鈕</span>
+    </div>
+    <div class="desc-card">
+      <h4>③ NERV Alert — 飛行追蹤</h4>
+      <p>按下 ENGAGE → 色調從冷青切換到警戒紅 → HUD 面板滑出 → 全螢幕隧道動畫 → 五階段進度追蹤 → 日文裝飾文字 → 最終顯示「決済完了」。</p>
+      <span class="tag tag-red">全螢幕</span>
+      <span class="tag tag-red">紅色警戒</span>
+      <span class="tag tag-red">隧道動畫</span>
+    </div>
+    <div class="desc-card">
+      <h4>④ Settlement Confirmed</h4>
+      <p>飛行完成 → 中心爆發綠色光暈 → 「SETTLEMENT CONFIRMED / 決済完了」→ 1.5 秒後色調漸變回 MAGI 冷青 → 回到監控模式。</p>
+      <span class="tag tag-green">完成動畫</span>
+      <span class="tag tag-green">漸變回歸</span>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== VISUAL LANGUAGE ==================== -->
+<div class="desc-section">
+  <h3>視覺語言</h3>
+  <div class="desc-grid">
+    <div class="desc-card">
+      <h4>MAGI Mode 色彩</h4>
+      <p>主色調：冷青 (#7df6ff)、深海藍背景、#4ade80 作為正向指標。面板使用高模糊度 backdrop-filter 保持通透感。六角形背景網格暗示科技感。</p>
+    </div>
+    <div class="desc-card">
+      <h4>NERV Mode 色彩</h4>
+      <p>警戒紅 (#ff4a3a) 為主導。背景從深藍轉為暗紅。掃描線頻率加密。警告條紋閃爍。所有冷色元素切換為暖紅色系。</p>
+    </div>
+    <div class="desc-card">
+      <h4>字體 & 排版</h4>
+      <p>主字體 JetBrains Mono（等寬），用於所有 HUD 數據。標籤全大寫 + letter-spacing。數字使用 tabular-nums。日文裝飾使用直書模式。</p>
+    </div>
+    <div class="desc-card">
+      <h4>動態效果</h4>
+      <p>掃描線覆蓋層（screen blend）。面板邊緣微光漸變。數字即時跳動。NERV 模式加入 CRT 閃爍效果。弧線粒子分段追蹤。</p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

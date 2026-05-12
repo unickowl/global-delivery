@@ -1,0 +1,199 @@
+<h2>監控台佈局方向</h2>
+<p class="subtitle">地球為主視覺，周圍環繞資訊面板。選一個最接近你想像的方向。</p>
+
+<div class="cards" style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px;">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)" style="padding:0;overflow:hidden;cursor:pointer;">
+    <div class="card-image" style="padding:0;height:380px;background:#080c12;position:relative;overflow:hidden;">
+      <!-- Layout A: Center Globe + HUD Overlay -->
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+        <!-- Globe -->
+        <div style="width:220px;height:220px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#1a3a4a,#0a1820 60%,#060d12);border:1px solid rgba(0,200,255,0.2);box-shadow:0 0 60px rgba(0,180,220,0.15);"></div>
+      </div>
+      <!-- Top HUD bar -->
+      <div style="position:absolute;top:0;left:0;right:0;height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid rgba(0,200,255,0.15);background:linear-gradient(180deg,rgba(0,20,30,0.9),transparent);">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:6px;height:6px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;"></div>
+          <span style="color:rgba(0,200,255,0.7);font-size:10px;font-family:monospace;">SYSTEM ACTIVE</span>
+        </div>
+        <span style="color:rgba(0,200,255,0.5);font-size:9px;font-family:monospace;">MAGI-01 ▸ ONLINE</span>
+      </div>
+      <!-- Left data strip -->
+      <div style="position:absolute;top:56px;left:12px;width:90px;display:flex;flex-direction:column;gap:6px;">
+        <div style="padding:6px 8px;border:1px solid rgba(0,200,255,0.12);background:rgba(0,10,20,0.7);font-size:8px;color:rgba(0,200,255,0.6);font-family:monospace;">
+          VOL 24H<br><span style="color:#7df6ff;font-size:14px;font-weight:700;">$4.2M</span>
+        </div>
+        <div style="padding:6px 8px;border:1px solid rgba(0,200,255,0.12);background:rgba(0,10,20,0.7);font-size:8px;color:rgba(0,200,255,0.6);font-family:monospace;">
+          FLOWS<br><span style="color:#4ade80;font-size:14px;font-weight:700;">12</span>
+        </div>
+        <div style="padding:6px 8px;border:1px solid rgba(0,200,255,0.12);background:rgba(0,10,20,0.7);font-size:8px;color:rgba(0,200,255,0.6);font-family:monospace;">
+          SETTLE<br><span style="color:#7df6ff;font-size:14px;font-weight:700;">58s</span>
+        </div>
+      </div>
+      <!-- Right data strip -->
+      <div style="position:absolute;top:56px;right:12px;width:90px;display:flex;flex-direction:column;gap:6px;">
+        <div style="padding:6px 8px;border:1px solid rgba(0,200,255,0.12);background:rgba(0,10,20,0.7);font-size:8px;color:rgba(0,200,255,0.6);font-family:monospace;">
+          POOL<br>
+          <div style="height:4px;background:rgba(255,255,255,0.1);margin-top:4px;"><div style="height:100%;width:78%;background:linear-gradient(90deg,#4ade80,#7df6ff);"></div></div>
+        </div>
+        <div style="padding:6px 8px;border:1px solid rgba(0,200,255,0.12);background:rgba(0,10,20,0.7);font-size:8px;color:rgba(0,200,255,0.6);font-family:monospace;">
+          RISK<br><span style="color:#4ade80;font-size:14px;font-weight:700;">LOW</span>
+        </div>
+      </div>
+      <!-- Bottom transaction ticker -->
+      <div style="position:absolute;bottom:0;left:0;right:0;height:56px;border-top:1px solid rgba(0,200,255,0.15);background:rgba(0,10,20,0.85);display:flex;align-items:center;gap:12px;padding:0 16px;overflow:hidden;">
+        <div style="padding:4px 8px;border:1px solid rgba(0,200,255,0.2);font-size:8px;font-family:monospace;color:rgba(0,200,255,0.7);white-space:nowrap;">TX-8F31 <span style="color:#4ade80;">ROUTING</span> SF→SG</div>
+        <div style="padding:4px 8px;border:1px solid rgba(0,200,255,0.2);font-size:8px;font-family:monospace;color:rgba(0,200,255,0.7);white-space:nowrap;">TX-1C72 <span style="color:#f7ff4d;">PENDING</span> LDN→MAD</div>
+        <div style="padding:4px 8px;border:1px solid rgba(0,200,255,0.2);font-size:8px;font-family:monospace;color:rgba(0,200,255,0.7);white-space:nowrap;">TX-6B09 <span style="color:#4ade80;">SETTLED</span> TKY→SYD</div>
+      </div>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <h3 style="margin:0 0 6px;">A. 全螢幕 HUD 覆蓋</h3>
+      <p style="margin:0;font-size:13px;opacity:0.7;">地球佔滿整個畫面，所有資訊以 HUD 形式浮在上方。像戰情室的抬頭顯示器。交易列表變成底部的滾動 ticker。最大化沉浸感。</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)" style="padding:0;overflow:hidden;cursor:pointer;">
+    <div class="card-image" style="padding:0;height:380px;background:#080c12;position:relative;overflow:hidden;">
+      <!-- Layout B: Multi-panel split screen -->
+      <div style="position:absolute;inset:8px;display:grid;grid-template-columns:1fr 1.6fr 1fr;grid-template-rows:auto 1fr auto;gap:6px;">
+        <!-- Top bar spanning all -->
+        <div style="grid-column:1/-1;height:32px;border:1px solid rgba(0,200,255,0.15);background:rgba(0,10,20,0.8);display:flex;align-items:center;justify-content:space-between;padding:0 12px;">
+          <span style="color:rgba(0,200,255,0.7);font-size:9px;font-family:monospace;">◆ FLOWSPHERE COMMAND</span>
+          <span style="color:rgba(0,200,255,0.4);font-size:8px;font-family:monospace;">MAGI SYSTEM v3.01</span>
+        </div>
+        <!-- Left panels -->
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="flex:1;border:1px solid rgba(0,200,255,0.12);background:rgba(0,10,20,0.7);padding:8px;">
+            <div style="font-size:7px;color:rgba(0,200,255,0.5);font-family:monospace;margin-bottom:4px;">NETWORK LOAD</div>
+            <div style="color:#7df6ff;font-size:16px;font-weight:700;font-family:monospace;">$4.2M</div>
+            <div style="height:30px;margin-top:6px;background:linear-gradient(135deg,transparent 15%,rgba(0,200,255,0.15) 16% 18%,transparent 19%);border-bottom:1px solid rgba(0,200,255,0.15);"></div>
+          </div>
+          <div style="flex:1;border:1px solid rgba(0,200,255,0.12);background:rgba(0,10,20,0.7);padding:8px;">
+            <div style="font-size:7px;color:rgba(0,200,255,0.5);font-family:monospace;margin-bottom:4px;">LIQUIDITY</div>
+            <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px;">
+              <div><div style="font-size:7px;color:rgba(0,200,255,0.4);font-family:monospace;">APAC 78%</div><div style="height:3px;background:rgba(255,255,255,0.08);"><div style="height:100%;width:78%;background:linear-gradient(90deg,#4ade80,#7df6ff);"></div></div></div>
+              <div><div style="font-size:7px;color:rgba(0,200,255,0.4);font-family:monospace;">EU 65%</div><div style="height:3px;background:rgba(255,255,255,0.08);"><div style="height:100%;width:65%;background:linear-gradient(90deg,#4ade80,#7df6ff);"></div></div></div>
+            </div>
+          </div>
+        </div>
+        <!-- Center globe -->
+        <div style="border:1px solid rgba(0,200,255,0.15);background:rgba(0,8,14,0.6);display:flex;align-items:center;justify-content:center;position:relative;">
+          <div style="width:160px;height:160px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#1a3a4a,#0a1820 60%,#060d12);border:1px solid rgba(0,200,255,0.2);box-shadow:0 0 40px rgba(0,180,220,0.12);"></div>
+          <div style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:8px;color:rgba(0,200,255,0.5);font-family:monospace;">SF → SG ▸ 01:42</div>
+        </div>
+        <!-- Right panel: transactions -->
+        <div style="border:1px solid rgba(0,200,255,0.12);background:rgba(0,10,20,0.7);padding:8px;display:flex;flex-direction:column;gap:4px;overflow:hidden;">
+          <div style="font-size:7px;color:rgba(0,200,255,0.5);font-family:monospace;margin-bottom:2px;">LIVE TRANSACTIONS</div>
+          <div style="padding:5px 6px;border:1px solid rgba(0,200,255,0.18);background:rgba(0,200,255,0.05);font-size:7px;font-family:monospace;color:rgba(0,200,255,0.7);">TX-8F31 <span style="color:#7df6ff;">●</span> SF→SG $420K</div>
+          <div style="padding:5px 6px;border:1px solid rgba(0,200,255,0.1);font-size:7px;font-family:monospace;color:rgba(0,200,255,0.5);">TX-1C72 <span style="color:#f7ff4d;">●</span> LDN→MAD $185K</div>
+          <div style="padding:5px 6px;border:1px solid rgba(0,200,255,0.1);font-size:7px;font-family:monospace;color:rgba(0,200,255,0.5);">TX-6B09 <span style="color:#4ade80;">●</span> TKY→SYD ¥84M</div>
+          <div style="padding:5px 6px;border:1px solid rgba(0,200,255,0.1);font-size:7px;font-family:monospace;color:rgba(0,200,255,0.5);">TX-4A91 <span style="color:#7df6ff;">●</span> SP→MEX $95K</div>
+        </div>
+        <!-- Bottom detail bar -->
+        <div style="grid-column:1/-1;height:44px;border:1px solid rgba(0,200,255,0.12);background:rgba(0,10,20,0.8);display:flex;align-items:center;gap:24px;padding:0 12px;">
+          <div style="font-size:7px;font-family:monospace;color:rgba(0,200,255,0.5);">SELECTED <span style="color:#7df6ff;">TX-8F31A9</span></div>
+          <div style="font-size:7px;font-family:monospace;color:rgba(0,200,255,0.5);">FX <span style="color:#e8fbff;">0.9981</span></div>
+          <div style="font-size:7px;font-family:monospace;color:rgba(0,200,255,0.5);">FEE <span style="color:#e8fbff;">$798</span></div>
+          <div style="font-size:7px;font-family:monospace;color:rgba(0,200,255,0.5);">RAIL <span style="color:#e8fbff;">WIRE</span></div>
+          <div style="font-size:7px;font-family:monospace;color:rgba(0,200,255,0.5);">RISK <span style="color:#4ade80;">18/100</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <h3 style="margin:0 0 6px;">B. 多面板分割螢幕</h3>
+      <p style="margin:0;font-size:13px;opacity:0.7;">經典監控台格局。地球居中，左側數據面板、右側交易列表、底部詳情欄。每個面板有獨立邊框。像 MAGI 的多螢幕工作站。</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)" style="padding:0;overflow:hidden;cursor:pointer;">
+    <div class="card-image" style="padding:0;height:380px;background:#080c12;position:relative;overflow:hidden;">
+      <!-- Layout C: Asymmetric command center -->
+      <!-- Hex grid background hint -->
+      <svg style="position:absolute;inset:0;width:100%;height:100%;opacity:0.04;" viewBox="0 0 400 380">
+        <pattern id="hex" width="30" height="52" patternUnits="userSpaceOnUse"><polygon points="15,0 30,13 30,39 15,52 0,39 0,13" fill="none" stroke="cyan" stroke-width="0.5"/></pattern>
+        <rect width="400" height="380" fill="url(#hex)"/>
+      </svg>
+      <!-- Main layout -->
+      <div style="position:absolute;inset:8px;display:grid;grid-template-columns:280px 1fr;grid-template-rows:32px 1fr 80px;gap:6px;">
+        <!-- Top bar -->
+        <div style="grid-column:1/-1;border:1px solid rgba(0,200,255,0.15);background:rgba(0,10,20,0.85);display:flex;align-items:center;justify-content:space-between;padding:0 12px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:20px;height:20px;background:linear-gradient(135deg,rgba(255,61,242,0.3),rgba(0,200,255,0.3));clip-path:polygon(0 0,100% 0,100% 70%,70% 100%,0 100%);"></div>
+            <span style="color:rgba(0,200,255,0.8);font-size:10px;font-family:monospace;font-weight:700;">FLOWSPHERE</span>
+          </div>
+          <div style="display:flex;gap:16px;align-items:center;">
+            <span style="color:rgba(0,200,255,0.4);font-size:8px;font-family:monospace;">CASPER ▸ MELCHIOR ▸ BALTHASAR</span>
+            <div style="display:flex;gap:4px;align-items:center;"><div style="width:5px;height:5px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px #4ade80;"></div><span style="color:rgba(0,200,255,0.5);font-size:8px;font-family:monospace;">99.84%</span></div>
+          </div>
+        </div>
+        <!-- Left: large globe area -->
+        <div style="grid-row:2/4;border:1px solid rgba(0,200,255,0.12);background:radial-gradient(circle at center,rgba(0,40,60,0.15),rgba(0,5,10,0.6));display:flex;align-items:center;justify-content:center;position:relative;">
+          <div style="width:200px;height:200px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#1a3a4a,#0a1820 60%,#060d12);border:1px solid rgba(0,200,255,0.18);box-shadow:0 0 50px rgba(0,180,220,0.1);"></div>
+          <!-- Scan line effect -->
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:240px;height:240px;border-radius:50%;border:1px dashed rgba(0,200,255,0.08);"></div>
+          <div style="position:absolute;bottom:10px;left:10px;right:10px;display:flex;justify-content:space-between;font-size:7px;font-family:monospace;color:rgba(0,200,255,0.4);">
+            <span>LAT 37.77 LNG -122.41</span>
+            <span>PHI 0.22 θ 0.34</span>
+          </div>
+        </div>
+        <!-- Right: stacked info -->
+        <div style="display:grid;grid-template-rows:auto 1fr 1fr;gap:6px;">
+          <!-- Stats row -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;">
+            <div style="border:1px solid rgba(0,200,255,0.1);background:rgba(0,10,20,0.7);padding:6px;text-align:center;">
+              <div style="font-size:6px;color:rgba(0,200,255,0.4);font-family:monospace;">VOLUME</div>
+              <div style="color:#7df6ff;font-size:13px;font-weight:700;font-family:monospace;">$4.2M</div>
+            </div>
+            <div style="border:1px solid rgba(0,200,255,0.1);background:rgba(0,10,20,0.7);padding:6px;text-align:center;">
+              <div style="font-size:6px;color:rgba(0,200,255,0.4);font-family:monospace;">SETTLE</div>
+              <div style="color:#7df6ff;font-size:13px;font-weight:700;font-family:monospace;">58s</div>
+            </div>
+            <div style="border:1px solid rgba(0,200,255,0.1);background:rgba(0,10,20,0.7);padding:6px;text-align:center;">
+              <div style="font-size:6px;color:rgba(0,200,255,0.4);font-family:monospace;">FLOWS</div>
+              <div style="color:#4ade80;font-size:13px;font-weight:700;font-family:monospace;">12</div>
+            </div>
+          </div>
+          <!-- Transaction list -->
+          <div style="border:1px solid rgba(0,200,255,0.12);background:rgba(0,10,20,0.7);padding:8px;overflow:hidden;">
+            <div style="font-size:7px;color:rgba(0,200,255,0.5);font-family:monospace;margin-bottom:6px;">TRANSACTION QUEUE</div>
+            <div style="display:flex;flex-direction:column;gap:3px;">
+              <div style="padding:5px 6px;border-left:2px solid #7df6ff;background:rgba(0,200,255,0.06);font-size:7px;font-family:monospace;color:#e8fbff;">TX-8F31 SF→SG $420K <span style="color:#7df6ff;">ROUTING</span></div>
+              <div style="padding:5px 6px;border-left:2px solid transparent;font-size:7px;font-family:monospace;color:rgba(0,200,255,0.5);">TX-1C72 LDN→MAD $185K <span style="color:#f7ff4d;">PENDING</span></div>
+              <div style="padding:5px 6px;border-left:2px solid transparent;font-size:7px;font-family:monospace;color:rgba(0,200,255,0.5);">TX-6B09 TKY→SYD ¥84M <span style="color:#4ade80;">SETTLED</span></div>
+            </div>
+          </div>
+          <!-- Liquidity pools -->
+          <div style="border:1px solid rgba(0,200,255,0.12);background:rgba(0,10,20,0.7);padding:8px;overflow:hidden;">
+            <div style="font-size:7px;color:rgba(0,200,255,0.5);font-family:monospace;margin-bottom:6px;">LIQUIDITY POOLS</div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <div><div style="display:flex;justify-content:space-between;font-size:7px;color:rgba(0,200,255,0.5);font-family:monospace;"><span>APAC PRIME</span><span>78%</span></div><div style="height:3px;background:rgba(255,255,255,0.06);margin-top:2px;"><div style="height:100%;width:78%;background:linear-gradient(90deg,#4ade80,#7df6ff);"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:7px;color:rgba(0,200,255,0.5);font-family:monospace;"><span>EU INSTANT</span><span>65%</span></div><div style="height:3px;background:rgba(255,255,255,0.06);margin-top:2px;"><div style="height:100%;width:65%;background:linear-gradient(90deg,#4ade80,#7df6ff);"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:7px;color:rgba(0,200,255,0.5);font-family:monospace;"><span>LATAM FLOW</span><span>82%</span></div><div style="height:3px;background:rgba(255,255,255,0.06);margin-top:2px;"><div style="height:100%;width:82%;background:linear-gradient(90deg,#4ade80,#7df6ff);"></div></div></div>
+            </div>
+          </div>
+        </div>
+        <!-- Bottom detail -->
+        <div style="border:1px solid rgba(0,200,255,0.12);background:rgba(0,10,20,0.85);display:flex;align-items:center;gap:20px;padding:0 12px;">
+          <div style="font-size:8px;font-family:monospace;"><span style="color:rgba(0,200,255,0.4);">SELECTED</span> <span style="color:#7df6ff;font-weight:700;">TX-8F31A9</span></div>
+          <div style="font-size:8px;font-family:monospace;color:rgba(0,200,255,0.5);">$420,000 USD → 419,202 USDC</div>
+          <div style="display:flex;gap:12px;margin-left:auto;">
+            <span style="font-size:7px;font-family:monospace;color:rgba(0,200,255,0.4);">FX 0.9981</span>
+            <span style="font-size:7px;font-family:monospace;color:rgba(0,200,255,0.4);">RISK <span style="color:#4ade80;">18</span></span>
+            <span style="font-size:7px;font-family:monospace;color:rgba(0,200,255,0.4);">RAIL WIRE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body" style="padding:16px;">
+      <h3 style="margin:0 0 6px;">C. 不對稱指揮中心</h3>
+      <p style="margin:0;font-size:13px;opacity:0.7;">地球佔左側 2/3 面積，右側堆疊交易佇列、流動性池、統計數據。底部是選中交易的詳情條。六角形背景紋理。非對稱但平衡。</p>
+    </div>
+  </div>
+
+</div>
+
+<p style="margin-top:20px;font-size:13px;opacity:0.6;text-align:center;">點選你偏好的佈局方向，或在終端機告訴我你的想法</p>
