@@ -163,6 +163,20 @@ const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
   rotateSpeed: 0.003,
   arcBrightness: 0.5,
   showGrid: false,
+  maxLargeAnimated: 8,
+  drawDuration: 2200,
+  smallAnimate: true,
+  largeThreshold: 750000,
+  flowCount: 140,
+  normalLineWidth: 1,
+  normalGlow: 1,
+  normalHighlight: 1,
+  normalPulse: 1,
+  normalFlowSpeed: 1,
+  largeTrailLength: 0.24,
+  largeGlow: 1,
+  largeDotScale: 1,
+  largeFlightSpeed: 1,
 }
 
 export function App() {
@@ -289,7 +303,7 @@ export function App() {
       {/* HUD: Right transaction queue */}
       <div className="hud-panel panel-transactions">
         <div className="hud-label">Transaction Queue</div>
-        {live.transactions.map((tx) => (
+        {live.transactions.slice(0, 9).map((tx) => (
           <TransactionRow
             key={tx.id}
             transaction={tx}

@@ -48,17 +48,20 @@ function nextTransactions(t: number): Transaction[] {
   const tapeCycle = Math.floor(t / 3.4)
   const order = orderPatterns[tapeCycle % orderPatterns.length]
 
-  return order.map((baseIndex, slotIndex) => {
+  return Array.from({ length: 160 }, (_, slotIndex) => {
+    const baseIndex = order[slotIndex % order.length]
     const transaction = baseTransactions[baseIndex]
     const index = slotIndex
     const cycle = 34 + index * 4
     const progress = ((t + index * 5.2) % cycle) / cycle
+    const randomish = Math.abs(Math.sin((tapeCycle + 1) * 9.173 + slotIndex * 2.719))
+    const scale = 0.18 + Math.pow(randomish, 3.2) * 18 + (slotIndex % 17 === 0 ? 8 : 0)
     const amountDrift =
       1 +
       wave(t, index * 1.7, 0.42) * 0.026 +
       wave(t, index * 0.9, 1.1) * 0.014 +
       ((tapeCycle + index) % 5) * 0.003
-    const sourceAmount = transaction.source.amount * amountDrift
+    const sourceAmount = transaction.source.amount * amountDrift * scale
     const targetAmount = sourceAmount * transaction.exchangeRate
     const fee = transaction.fee * (1 + wave(t, index * 2.3, 0.8) * 0.08)
     const etaBase = (1 - progress) * (210 + index * 36)
@@ -81,6 +84,7 @@ function nextTransactions(t: number): Transaction[] {
       },
     }
   })
+    .sort((a, b) => Math.max(b.source.amount, b.target.amount) - Math.max(a.source.amount, a.target.amount))
 }
 
 function nextPools(t: number): PoolMetric[] {
