@@ -23,7 +23,7 @@ const stages = [
   { label: "Settlement final", icon: BadgeCheck },
 ]
 
-const FLIGHT_DURATION = 6400
+export const FLIGHT_DURATION = 6400
 
 function Metric({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (

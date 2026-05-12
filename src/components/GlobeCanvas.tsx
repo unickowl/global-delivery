@@ -1,6 +1,7 @@
-import { type CSSProperties, useEffect, useMemo, useRef } from "react"
+import { type CSSProperties, useEffect, useRef } from "react"
 import createGlobe, { type Arc, type Globe, type Marker } from "cobe"
 import type { Transaction } from "../data/transactions"
+import { FLIGHT_DURATION } from "../App"
 
 type GlobeMode = "monitor" | "focus" | "flight" | "success"
 
@@ -11,8 +12,6 @@ type GlobeCanvasProps = {
   flightStartedAt: number | null
   onFlightDone: () => void
 }
-
-const FLIGHT_DURATION = 6400
 const CITY_MARKERS = [
   { id: "city-sf", label: "San Francisco", location: [37.7749, -122.4194] as [number, number] },
   { id: "city-london", label: "London", location: [51.5072, -0.1276] as [number, number] },
@@ -171,7 +170,7 @@ export function GlobeCanvas({ transactions, selected, mode, flightStartedAt, onF
   const cobeCanvasRef = useRef<HTMLCanvasElement>(null)
   const flightCanvasRef = useRef<HTMLCanvasElement>(null)
   const globeRef = useRef<Globe | null>(null)
-  const latestRef = useRef({ transactions, selected, mode, flightStartedAt, onFlightDone })
+  const latestRef = useRef({ transactions, selected, mode, flightStartedAt, onFlightDone, amountMin: 0, amountMax: 1 })
   const sizeRef = useRef({ width: 1, height: 1, dpr: 1 })
   const doneRef = useRef(false)
   const phiRef = useRef(0)
@@ -184,16 +183,13 @@ export function GlobeCanvas({ transactions, selected, mode, flightStartedAt, onF
     lastT: 0,
   })
 
-  const amountRange = useMemo(() => {
-    const logs = transactions.map((tx) => Math.log10(Math.max(tx.source.amount, tx.target.amount)))
-    return {
-      min: Math.min(...logs),
-      max: Math.max(...logs),
-    }
-  }, [transactions])
-
   useEffect(() => {
-    latestRef.current = { transactions, selected, mode, flightStartedAt, onFlightDone }
+    const logs = transactions.map((tx) => Math.log10(Math.max(tx.source.amount, tx.target.amount)))
+    latestRef.current = {
+      transactions, selected, mode, flightStartedAt, onFlightDone,
+      amountMin: Math.min(...logs),
+      amountMax: Math.max(...logs),
+    }
     if (mode === "flight") doneRef.current = false
   }, [flightStartedAt, mode, onFlightDone, selected, transactions])
 
@@ -309,7 +305,7 @@ export function GlobeCanvas({ transactions, selected, mode, flightStartedAt, onF
         const selectedTx = current.selected.id === tx.id
         if (!visible && !selectedTx) return
 
-        const weight = amountWeight(tx, amountRange.min, amountRange.max)
+        const weight = amountWeight(tx, current.amountMin, current.amountMax)
         const progress = clamp(local, 0, 1)
         const fadeIn = clamp(progress / 0.16, 0, 1)
         const fadeOut = clamp((1 - progress) / 0.22, 0, 1)
@@ -409,7 +405,7 @@ export function GlobeCanvas({ transactions, selected, mode, flightStartedAt, onF
       globeRef.current = null
       globe.destroy()
     }
-  }, [amountRange.max, amountRange.min])
+  }, [])
 
   useEffect(() => {
     const canvas = flightCanvasRef.current
