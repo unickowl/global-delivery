@@ -4,6 +4,7 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js"
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js"
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js"
 import type { Transaction } from "../data/transactions"
+import { naturalEarthLandPoints } from "../data/landPoints"
 import { FLIGHT_DURATION } from "../App"
 import type { GlobeSettingsState } from "./ArcOverlay"
 
@@ -21,7 +22,7 @@ type ThreeGlobeCanvasProps = {
 }
 
 type Vec3 = [number, number, number]
-type LandPoint = { vec: Vec3; seed: number }
+type LandPoint = { vec: Vec3; seed: number; coast: boolean }
 type FlowPhase = "arriving" | "flying" | "landing" | "drawing" | "breathing" | "fading"
 type FlowNode = { city: string; country: string; lat: number; lng: number; vec: Vec3 }
 type FlowTx = {
@@ -46,16 +47,6 @@ const FLYING_MS = 3200
 const LANDING_MS = 1200
 const FADING_MS = 1500
 const ARC_SEGMENTS = 32
-
-const LAND_POLYGONS: Array<Array<[number, number]>> = [
-  [[72, -168], [61, -148], [48, -126], [31, -120], [16, -101], [8, -82], [24, -76], [47, -66], [60, -52], [72, -96]],
-  [[12, -80], [5, -62], [-9, -44], [-24, -45], [-55, -70], [-36, -75], [-14, -77]],
-  [[70, -12], [60, 18], [54, 74], [62, 146], [49, 170], [30, 124], [10, 104], [7, 79], [24, 58], [36, 13], [45, -8]],
-  [[35, -18], [29, 30], [8, 45], [-9, 38], [-34, 20], [-35, 4], [-20, -15], [5, -16]],
-  [[-11, 112], [-18, 151], [-36, 154], [-44, 134], [-30, 114]],
-  [[72, -56], [82, -38], [76, -20], [62, -42]],
-  [[20, 94], [10, 110], [-5, 128], [-9, 116], [7, 94]],
-]
 
 const EXTRA_NODES: Array<Omit<FlowNode, "vec">> = [
   { city: "New York", country: "United States", lat: 40.7128, lng: -74.006 },
@@ -96,7 +87,7 @@ function toVec3(lat: number, lng: number): Vec3 {
   const latRad = (lat * Math.PI) / 180
   const lngRad = (lng * Math.PI) / 180
   return [
-    Math.cos(latRad) * Math.cos(lngRad),
+    -Math.cos(latRad) * Math.cos(lngRad),
     Math.sin(latRad),
     Math.cos(latRad) * Math.sin(lngRad),
   ]
@@ -135,29 +126,12 @@ function createArcPoints(from: Vec3, to: Vec3, height: number, segments = ARC_SE
   return points
 }
 
-function pointInPolygon(lat: number, lng: number, polygon: Array<[number, number]>) {
-  let inside = false
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const yi = polygon[i][0]
-    const xi = polygon[i][1]
-    const yj = polygon[j][0]
-    const xj = polygon[j][1]
-    const intersects = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi + 0.00001) + xi
-    if (intersects) inside = !inside
-  }
-  return inside
-}
-
 function createLandPoints(): LandPoint[] {
-  const points: LandPoint[] = []
-  for (let lat = -88; lat <= 88; lat += 2.2) {
-    for (let lng = -179; lng <= 179; lng += 2.2) {
-      if (LAND_POLYGONS.some((polygon) => pointInPolygon(lat, lng, polygon))) {
-        points.push({ vec: toVec3(lat, lng), seed: Math.abs(Math.sin(lat * 12.9898 + lng * 78.233)) })
-      }
-    }
-  }
-  return points
+  return naturalEarthLandPoints.map(([lat, lng, source]) => ({
+    vec: toVec3(lat, lng),
+    seed: Math.abs(Math.sin(lat * 12.9898 + lng * 78.233)),
+    coast: source === 1,
+  }))
 }
 
 function logNormalAmount() {
@@ -604,10 +578,12 @@ export function ThreeGlobeCanvas({
     const sphere = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 48), makeGlobeMaterial())
     globeGroup.add(sphere)
 
-    const landPositions = new Float32Array(landPoints.length * 3)
-    const landColors = new Float32Array(landPoints.length * 3)
-    landPoints.forEach((point, index) => {
-      const v = toVector3(point.vec, 1.006)
+    const fillPoints = landPoints.filter((point) => !point.coast)
+    const coastPoints = landPoints.filter((point) => point.coast)
+    const landPositions = new Float32Array(fillPoints.length * 3)
+    const landColors = new Float32Array(fillPoints.length * 3)
+    fillPoints.forEach((point, index) => {
+      const v = toVector3(point.vec, 1.007)
       landPositions[index * 3] = v.x
       landPositions[index * 3 + 1] = v.y
       landPositions[index * 3 + 2] = v.z
@@ -615,6 +591,18 @@ export function ThreeGlobeCanvas({
       landColors[index * 3] = color.r
       landColors[index * 3 + 1] = color.g
       landColors[index * 3 + 2] = color.b
+    })
+    const coastPositions = new Float32Array(coastPoints.length * 3)
+    const coastColors = new Float32Array(coastPoints.length * 3)
+    coastPoints.forEach((point, index) => {
+      const v = toVector3(point.vec, 1.012)
+      coastPositions[index * 3] = v.x
+      coastPositions[index * 3 + 1] = v.y
+      coastPositions[index * 3 + 2] = v.z
+      const color = new THREE.Color(point.seed > 0.45 ? "#8fd79a" : "#6fbf88")
+      coastColors[index * 3] = color.r
+      coastColors[index * 3 + 1] = color.g
+      coastColors[index * 3 + 2] = color.b
     })
     const landGeometry = new THREE.BufferGeometry()
     landGeometry.setAttribute("position", new THREE.BufferAttribute(landPositions, 3))
@@ -631,6 +619,21 @@ export function ThreeGlobeCanvas({
       }),
     )
     globeGroup.add(land)
+    const coastGeometry = new THREE.BufferGeometry()
+    coastGeometry.setAttribute("position", new THREE.BufferAttribute(coastPositions, 3))
+    coastGeometry.setAttribute("color", new THREE.BufferAttribute(coastColors, 3))
+    const coast = new THREE.Points(
+      coastGeometry,
+      new THREE.PointsMaterial({
+        size: 2.8,
+        sizeAttenuation: false,
+        transparent: true,
+        opacity: 0.95,
+        vertexColors: true,
+        depthWrite: false,
+      }),
+    )
+    globeGroup.add(coast)
 
     const lineResolution = new THREE.Vector2(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight))
     const gridLines = createFatSegments("#6bb7ff", 0.06, 0.65, lineResolution)
@@ -749,7 +752,7 @@ export function ThreeGlobeCanvas({
         if (current.mode === "focus") {
           const midLng = (current.selected.source.lng + current.selected.target.lng) / 2
           const midLat = (current.selected.source.lat + current.selected.target.lat) / 2
-          const targetPhi = -midLng * (Math.PI / 180)
+          const targetPhi = Math.PI / 2 - midLng * (Math.PI / 180)
           const targetTheta = clamp(midLat * (Math.PI / 180) * 0.72, -0.75, 0.75)
           let delta = targetPhi - phiRef.current
           delta = ((delta + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI
@@ -814,8 +817,11 @@ export function ThreeGlobeCanvas({
       const globeMaterial = sphere.material as THREE.ShaderMaterial
       globeMaterial.uniforms.brightness.value = current.globeSettings.surfaceBrightness ?? 1.28
       const landMaterial = land.material as THREE.PointsMaterial
-      landMaterial.opacity = clamp(0.5 + 0.22 * (current.globeSettings.landBrightness ?? 1.65), 0.35, 1)
-      landMaterial.size = 1.35 + 0.85 * clamp(current.globeSettings.landBrightness ?? 1.65, 0.5, 4)
+      const coastMaterial = coast.material as THREE.PointsMaterial
+      landMaterial.opacity = clamp(0.38 + 0.18 * (current.globeSettings.landBrightness ?? 1.65), 0.28, 0.9)
+      landMaterial.size = 1.15 + 0.62 * clamp(current.globeSettings.landBrightness ?? 1.65, 0.5, 4)
+      coastMaterial.opacity = clamp(0.54 + 0.2 * (current.globeSettings.landBrightness ?? 1.65), 0.4, 1)
+      coastMaterial.size = 1.8 + 0.85 * clamp(current.globeSettings.landBrightness ?? 1.65, 0.5, 4)
 
       let dotIndex = 0
       for (const dot of largeDots) dot.visible = false
@@ -872,6 +878,8 @@ export function ThreeGlobeCanvas({
       ;(sphere.material as THREE.Material).dispose()
       landGeometry.dispose()
       ;(land.material as THREE.Material).dispose()
+      coastGeometry.dispose()
+      ;(coast.material as THREE.Material).dispose()
       gridLines.geometry.dispose()
       normalGlowLines.geometry.dispose()
       normalLines.geometry.dispose()
