@@ -20,29 +20,18 @@ const CITY_MARKERS = [
   { id: "city-dubai", label: "Dubai", location: [25.2048, 55.2708] as [number, number] },
 ]
 
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value))
-}
-
 function easeInOut(t: number) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 }
 
-function amountWeight(tx: Transaction, minLog: number, maxLog: number) {
-  const nominal = Math.max(tx.source.amount, tx.target.amount)
-  return clamp((Math.log10(nominal) - minLog) / Math.max(1, maxLog - minLog), 0, 1)
-}
-
-function mixLocation(from: [number, number], to: [number, number], progress: number): [number, number] {
+function lerpLocation(from: [number, number], to: [number, number], t: number): [number, number] {
   let startLng = from[1]
   let endLng = to[1]
   const delta = endLng - startLng
   if (delta > 180) startLng += 360
   if (delta < -180) endLng += 360
-
-  const lift = Math.sin(Math.PI * progress) * 10
-  const lat = from[0] * (1 - progress) + to[0] * progress + lift
-  const lng = startLng * (1 - progress) + endLng * progress
+  const lat = from[0] * (1 - t) + to[0] * t
+  const lng = startLng * (1 - t) + endLng * t
   return [lat, ((((lng + 180) % 360) + 360) % 360) - 180]
 }
 
@@ -170,7 +159,7 @@ export function GlobeCanvas({ transactions, selected, mode, flightStartedAt, onF
   const cobeCanvasRef = useRef<HTMLCanvasElement>(null)
   const flightCanvasRef = useRef<HTMLCanvasElement>(null)
   const globeRef = useRef<Globe | null>(null)
-  const latestRef = useRef({ transactions, selected, mode, flightStartedAt, onFlightDone, amountMin: 0, amountMax: 1 })
+  const latestRef = useRef({ transactions, selected, mode, flightStartedAt, onFlightDone })
   const sizeRef = useRef({ width: 1, height: 1, dpr: 1 })
   const doneRef = useRef(false)
   const phiRef = useRef(0)
@@ -184,12 +173,7 @@ export function GlobeCanvas({ transactions, selected, mode, flightStartedAt, onF
   })
 
   useEffect(() => {
-    const logs = transactions.map((tx) => Math.log10(Math.max(tx.source.amount, tx.target.amount)))
-    latestRef.current = {
-      transactions, selected, mode, flightStartedAt, onFlightDone,
-      amountMin: Math.min(...logs),
-      amountMax: Math.max(...logs),
-    }
+    latestRef.current = { transactions, selected, mode, flightStartedAt, onFlightDone }
     if (mode === "flight") doneRef.current = false
   }, [flightStartedAt, mode, onFlightDone, selected, transactions])
 
@@ -298,69 +282,53 @@ export function GlobeCanvas({ transactions, selected, mode, flightStartedAt, onF
       }))
 
       current.transactions.forEach((tx, index) => {
-        const cycle = 8600 + index * 640
-        const duration = 4400 + index * 240
-        const local = ((now + index * 1330) % cycle) / duration
-        const visible = local <= 1
         const selectedTx = current.selected.id === tx.id
-        if (!visible && !selectedTx) return
-
-        const weight = amountWeight(tx, current.amountMin, current.amountMax)
-        const progress = clamp(local, 0, 1)
-        const fadeIn = clamp(progress / 0.16, 0, 1)
-        const fadeOut = clamp((1 - progress) / 0.22, 0, 1)
         const dimmed = current.mode === "focus" && !selectedTx
-        const alpha = selectedTx ? 1 : dimmed ? fadeIn * fadeOut * 0.2 : fadeIn * fadeOut
-        const segmentCount = Math.round(3 + weight * 3 + (selectedTx ? 1 : 0))
-        const tailLength = 0.18 + weight * 0.2
         const fromLocation: [number, number] = [tx.source.lat, tx.source.lng]
         const toLocation: [number, number] = [tx.target.lat, tx.target.lng]
 
-        for (let segment = 0; segment < segmentCount; segment += 1) {
-          const segmentHead = clamp(progress - segment * (tailLength / segmentCount), 0, 1)
-          const segmentTail = clamp(segmentHead - tailLength / segmentCount, 0, 1)
-          if (segmentHead <= 0 || segmentHead <= segmentTail) continue
+        // Single clean arc from source to target
+        const arcAlpha = dimmed ? 0.15 : selectedTx ? 1 : 0.6
+        activeArcs.push({
+          id: `arc-${tx.id}`,
+          from: fromLocation,
+          to: toLocation,
+          color: selectedTx
+            ? [0.5 * arcAlpha, 1 * arcAlpha, 1 * arcAlpha]
+            : [0.3 * arcAlpha, 0.7 * arcAlpha, 0.6 * arcAlpha],
+        })
 
-          const segmentAlpha = alpha * (1 - segment / segmentCount)
-          const segmentColor: [number, number, number] = selectedTx
-            ? [0.7 + segmentAlpha * 0.3, 1, 1]
-            : [0.32 + weight * 0.42 + segmentAlpha * 0.25, 0.72 + segmentAlpha * 0.28, 0.56 + weight * 0.24]
+        // Animated head marker traveling along the arc
+        const cycle = 6000 + index * 800
+        const progress = ((now + index * 1200) % cycle) / cycle
+        const headLocation = lerpLocation(fromLocation, toLocation, progress)
+        const pulse = 0.85 + Math.sin(now * 0.005 + index) * 0.15
 
-          activeArcs.push({
-            id: `arc-${tx.id}-${segment}`,
-            from: mixLocation(fromLocation, toLocation, segmentTail),
-            to: mixLocation(fromLocation, toLocation, segmentHead),
-            color: segmentColor,
+        // Source marker
+        activeMarkers.push({
+          id: `${tx.id}-source`,
+          location: fromLocation,
+          size: dimmed ? 0.01 : selectedTx ? 0.03 : 0.02,
+          color: [0.5, 0.9, 1],
+        })
+
+        // Traveling head
+        if (!dimmed) {
+          activeMarkers.push({
+            id: `${tx.id}-head`,
+            location: headLocation,
+            size: (selectedTx ? 0.045 : 0.025) * pulse,
+            color: selectedTx ? [0.5, 1, 1] : [0.3, 0.8, 0.5],
           })
         }
 
-        if (visible || selectedTx) {
-          const pulse = (0.85 + Math.sin(now * 0.006 + index) * 0.15) * Math.max(0.35, alpha)
-          const headLocation = mixLocation(fromLocation, toLocation, progress)
-          activeMarkers.push(
-            {
-              id: `${tx.id}-source`,
-              location: [tx.source.lat, tx.source.lng],
-              size: (0.014 + weight * 0.018) * Math.max(0.35, alpha),
-              color: [0.95, 1, 1],
-            },
-            {
-              id: `${tx.id}-head`,
-              location: headLocation,
-              size: (0.04 + weight * 0.07) * pulse,
-              color: selectedTx ? [0.95, 1, 1] : [0.55, 1, 0.74],
-            },
-          )
-
-          if (progress > 0.78) {
-            activeMarkers.push({
-              id: `${tx.id}-target`,
-              location: [tx.target.lat, tx.target.lng],
-              size: (0.02 + weight * 0.04) * clamp((progress - 0.78) / 0.22, 0, 1),
-              color: [0.72, 1, 0.68],
-            })
-          }
-        }
+        // Target marker
+        activeMarkers.push({
+          id: `${tx.id}-target`,
+          location: toLocation,
+          size: dimmed ? 0.008 : selectedTx ? 0.025 : 0.015,
+          color: [0.4, 1, 0.7],
+        })
       })
 
       const drag = dragRef.current

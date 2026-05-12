@@ -6,8 +6,8 @@
   --hud-yellow: #f7ff4d;
   --hud-red: #ff4a3a;
   --hud-bg: #060a10;
-  --panel-bg: rgba(4, 10, 18, 0.72);
-  --panel-border: rgba(0, 200, 255, 0.14);
+  --panel-bg: rgba(4, 10, 18, 0.82);
+  --panel-border: rgba(0, 200, 255, 0.22);
   --label-color: rgba(125, 246, 255, 0.45);
   --text-dim: rgba(125, 246, 255, 0.5);
   --text-bright: #e8fbff;
@@ -104,11 +104,11 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 }
 
 .hud-label {
-  font-size: 8px;
+  font-size: 10px;
   color: var(--label-color);
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   transition: color 600ms ease;
 }
 
@@ -124,13 +124,13 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 }
 
 .system-text {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-dim);
 }
 
 .system-text strong {
   color: var(--text-bright);
-  font-size: 12px;
+  font-size: 14px;
   letter-spacing: 0.06em;
 }
 
@@ -154,14 +154,14 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 }
 
 .magi-name {
-  font-size: 7px;
+  font-size: 9px;
   color: var(--label-color);
   text-transform: uppercase;
   letter-spacing: 0.12em;
 }
 
 .magi-status {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--hud-green);
 }
@@ -169,22 +169,22 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 .panel-metrics {
   top: 70px;
   left: 16px;
-  width: 150px;
-  padding: 12px;
+  width: 190px;
+  padding: 14px;
 }
 
 .panel-liquidity {
   bottom: 80px;
   left: 16px;
-  width: 150px;
-  padding: 12px;
+  width: 190px;
+  padding: 14px;
 }
 
 .panel-transactions {
   top: 70px;
   right: 16px;
-  width: 220px;
-  padding: 12px;
+  width: 270px;
+  padding: 14px;
 }
 
 .panel-detail {
@@ -223,14 +223,14 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 }
 
 .metric-val {
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 700;
-  text-shadow: 0 0 12px rgba(125, 246, 255, 0.3);
+  text-shadow: 0 0 14px rgba(125, 246, 255, 0.35);
   font-variant-numeric: tabular-nums;
 }
 
 .metric-change {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--hud-green);
 }
 
@@ -241,13 +241,13 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 .pool-name {
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--text-dim);
   margin-bottom: 4px;
 }
 
 .pool-bar-bg {
-  height: 3px;
+  height: 4px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
 }
@@ -265,7 +265,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   text-align: left;
   color: inherit;
   border: 1px solid rgba(160, 238, 255, 0.1);
-  padding: 8px;
+  padding: 10px;
   margin-bottom: 6px;
   transition: border-color 180ms ease, background 180ms ease;
 }
@@ -281,21 +281,21 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 }
 
 .tx-id {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   margin-right: 6px;
 }
 
 .tx-route-text {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--text-dim);
   margin-top: 4px;
 }
 
 .status-badge {
   display: inline;
-  padding: 1px 5px;
-  font-size: 7px;
+  padding: 2px 6px;
+  font-size: 8px;
   text-transform: uppercase;
   border: 1px solid currentColor;
   letter-spacing: 0.06em;
@@ -321,12 +321,12 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
 }
 
 .detail-amounts {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-dim);
   margin-top: 4px;
 }
