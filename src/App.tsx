@@ -9,6 +9,8 @@ import {
   ShieldCheck,
 } from "lucide-react"
 import { GlobeCanvas } from "./components/GlobeCanvas"
+import { ArcOverlay, type GlobeSettingsState } from "./components/ArcOverlay"
+import { GlobeSettings } from "./components/GlobeSettings"
 import { transactions as baseTransactions, type Transaction } from "./data/transactions"
 import { useLiveDashboard } from "./hooks/useLiveDashboard"
 import { cn, formatCompactMoney, formatEta, formatMoney } from "./lib/utils"
@@ -156,12 +158,22 @@ function NervOverlay({
   )
 }
 
+const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
+  arcHeight: 0.85,
+  rotateSpeed: 0.003,
+  arcBrightness: 0.5,
+  showGrid: false,
+}
+
 export function App() {
   const live = useLiveDashboard()
   const [selectedId, setSelectedId] = useState(baseTransactions[0].id)
   const [mode, setMode] = useState<Mode>("monitor")
   const [flightStartedAt, setFlightStartedAt] = useState<number | null>(null)
+  const [globeSettings, setGlobeSettings] = useState<GlobeSettingsState>(DEFAULT_GLOBE_SETTINGS)
   const resetTimerRef = useRef<number | null>(null)
+  const phiRef = useRef(0)
+  const thetaRef = useRef(0.22)
 
   const selected = useMemo(
     () => live.transactions.find((tx) => tx.id === selectedId) ?? live.transactions[0],
@@ -215,6 +227,17 @@ export function App() {
           mode={mode}
           flightStartedAt={flightStartedAt}
           onFlightDone={finishFlight}
+          globeSettings={globeSettings}
+          phiRef={phiRef}
+          thetaRef={thetaRef}
+        />
+        <ArcOverlay
+          transactions={live.transactions}
+          selected={selected}
+          mode={mode}
+          globeSettings={globeSettings}
+          phiRef={phiRef}
+          thetaRef={thetaRef}
         />
       </div>
 
@@ -315,8 +338,11 @@ export function App() {
 
       {/* HUD: Bottom-left coords */}
       <div className="hud-panel panel-coords">
-        PHI 0.224 · θ 0.220 · {selected.source.city.toUpperCase().slice(0, 3)} → {selected.target.city.toUpperCase().slice(0, 3)}
+        PHI {phiRef.current.toFixed(3)} · θ {thetaRef.current.toFixed(3)} · {selected.source.city.toUpperCase().slice(0, 3)} → {selected.target.city.toUpperCase().slice(0, 3)}
       </div>
+
+      {/* Globe Settings Panel */}
+      <GlobeSettings settings={globeSettings} onChange={setGlobeSettings} />
 
       {/* NERV Alert Overlay */}
       <NervOverlay
