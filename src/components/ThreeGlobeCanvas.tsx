@@ -27,6 +27,7 @@ type Vec3 = [number, number, number]
 type LandPoint = { vec: Vec3; seed: number; coast: boolean }
 type FlowPhase = "arriving" | "flying" | "landing" | "drawing" | "breathing" | "fading"
 type FlowNode = { city: string; country: string; lat: number; lng: number; vec: Vec3 }
+type FocusPhase = "idle" | "approach-source" | "source-label" | "flight" | "target-label"
 type FlowTx = {
   id: string
   status: Transaction["status"]
@@ -56,6 +57,10 @@ const FLYING_MS = 3200
 const LANDING_MS = 1200
 const FADING_MS = 1500
 const ARC_SEGMENTS = 32
+const FOCUS_SOURCE_MS = 1600
+const FOCUS_LABEL_MS = 1200
+const FOCUS_FLIGHT_MS = 5600
+const FOCUS_TARGET_MS = 1600
 
 const EXTRA_NODES: Array<Omit<FlowNode, "vec">> = [
   { city: "New York", country: "United States", lat: 40.7128, lng: -74.006 },
@@ -104,6 +109,99 @@ function toVec3(lat: number, lng: number): Vec3 {
 
 function toVector3(vec: Vec3, scale = 1) {
   return new THREE.Vector3(vec[0] * scale, vec[1] * scale, vec[2] * scale)
+}
+
+function rotationTargetForLatLng(lat: number, lng: number) {
+  return {
+    phi: Math.PI / 2 - lng * (Math.PI / 180),
+    theta: clamp(lat * (Math.PI / 180), -1.18, 1.18),
+  }
+}
+
+function easeRotationToward(phiRef: MutableRefObject<number>, thetaRef: MutableRefObject<number>, targetPhi: number, targetTheta: number, strength: number) {
+  let delta = targetPhi - phiRef.current
+  delta = ((delta + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI
+  phiRef.current += delta * strength
+  thetaRef.current += (targetTheta - thetaRef.current) * strength
+}
+
+function projectedNdcForRotation(vec: Vec3, phi: number, theta: number, scale: number, camera: THREE.Camera) {
+  const point = toVector3(vec, scale)
+  point.applyEuler(new THREE.Euler(-theta, phi, 0, "YXZ"))
+  const depth = point.z
+  point.project(camera)
+  return { x: point.x, y: point.y, z: depth }
+}
+
+function rotatedDepth(vec: Vec3, phi: number, theta: number) {
+  const point = toVector3(vec, 1)
+  point.applyEuler(new THREE.Euler(-theta, phi, 0, "YXZ"))
+  return point.z
+}
+
+function frontFacingRotationSeed(vec: Vec3, startPhi: number, startTheta: number) {
+  const target = rotationTargetForVec(vec)
+  const candidates = [
+    { phi: startPhi, theta: startTheta },
+    target,
+    { ...target, phi: target.phi + Math.PI * 2 },
+    { ...target, phi: target.phi - Math.PI * 2 },
+  ]
+
+  return candidates
+    .filter((candidate) => rotatedDepth(vec, candidate.phi, candidate.theta) > 0.08)
+    .sort((a, b) => {
+      const da = Math.abs((((a.phi - startPhi) + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI) + Math.abs(a.theta - startTheta)
+      const db = Math.abs((((b.phi - startPhi) + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI) + Math.abs(b.theta - startTheta)
+      return da - db
+    })[0] ?? rotationTargetForVec(vec)
+}
+
+function rotationTargetForVec(vec: Vec3) {
+  const lat = Math.asin(clamp(vec[1], -1, 1)) * (180 / Math.PI)
+  const lng = Math.atan2(vec[2], -vec[0]) * (180 / Math.PI)
+  return rotationTargetForLatLng(lat, lng)
+}
+
+function solveRotationForScreenPoint(
+  vec: Vec3,
+  startPhi: number,
+  startTheta: number,
+  camera: THREE.Camera,
+  scale: number,
+  targetX = 0,
+  targetY = 0.18,
+) {
+  const seed = frontFacingRotationSeed(vec, startPhi, startTheta)
+  let phi = seed.phi
+  let theta = seed.theta
+  const epsilon = 0.002
+  for (let i = 0; i < 10; i += 1) {
+    const current = projectedNdcForRotation(vec, phi, theta, scale, camera)
+    const errorX = targetX - current.x
+    const errorY = targetY - current.y
+    if (Math.abs(errorX) + Math.abs(errorY) < 0.003) break
+
+    const phiSample = projectedNdcForRotation(vec, phi + epsilon, theta, scale, camera)
+    const thetaSample = projectedNdcForRotation(vec, phi, theta + epsilon, scale, camera)
+    const a = (phiSample.x - current.x) / epsilon
+    const b = (thetaSample.x - current.x) / epsilon
+    const c = (phiSample.y - current.y) / epsilon
+    const d = (thetaSample.y - current.y) / epsilon
+    const determinant = a * d - b * c
+    if (Math.abs(determinant) < 0.0001) break
+
+    phi += clamp((errorX * d - b * errorY) / determinant, -0.18, 0.18)
+    theta = clamp(theta + clamp((a * errorY - errorX * c) / determinant, -0.18, 0.18), -1.32, 1.32)
+    if (projectedNdcForRotation(vec, phi, theta, scale, camera).z < 0.08) {
+      const fallback = rotationTargetForVec(vec)
+      phi = fallback.phi
+      theta = fallback.theta
+      break
+    }
+  }
+
+  return { phi, theta }
 }
 
 function slerp(a: Vec3, b: Vec3, t: number): Vec3 {
@@ -607,6 +705,23 @@ function selectedRouteSegments(selected: Transaction, settings: GlobeSettingsSta
   return new Float32Array(positions)
 }
 
+function selectedRouteSegmentsProgress(selected: Transaction, settings: GlobeSettingsState, progress: number, fullRoute = false) {
+  const from = toVec3(selected.source.lat, selected.source.lng)
+  const to = toVec3(selected.target.lat, selected.target.lng)
+  const points = createArcPoints(from, to, settings.arcHeight * 0.9, ARC_SEGMENTS)
+  const head = clamp(progress, 0, 1)
+  const tail = Math.max(0, head - 0.22)
+  const start = fullRoute ? 0 : Math.floor(tail * (points.length - 1))
+  const end = fullRoute ? points.length - 1 : Math.max(start + 1, Math.floor(head * (points.length - 1)))
+  const positions: number[] = []
+  for (let i = start; i < Math.min(end, points.length - 1); i += 1) {
+    const a = points[i]
+    const b = points[i + 1]
+    positions.push(a[0], a[1], a[2], b[0], b[1], b[2])
+  }
+  return new Float32Array(positions)
+}
+
 function gridSegments() {
   const positions: number[] = []
   const pushLine = (points: Vec3[]) => {
@@ -632,6 +747,21 @@ function gridSegments() {
 function orientToSurface(mesh: THREE.Object3D, vec: Vec3, radius = 1.01) {
   const normal = toVector3(vec, 1).normalize()
   mesh.position.copy(normal.multiplyScalar(radius))
+}
+
+function positionLabelAtVec(
+  label: HTMLDivElement,
+  vec: Vec3,
+  globeGroup: THREE.Object3D,
+  camera: THREE.Camera,
+  width: number,
+  height: number,
+) {
+  const point = toVector3(vec, 1.08)
+  point.applyMatrix4(globeGroup.matrixWorld)
+  point.project(camera)
+  label.style.left = `${(point.x * 0.5 + 0.5) * width}px`
+  label.style.top = `${(-point.y * 0.5 + 0.5) * height}px`
 }
 
 function createGlowSprite(texture: THREE.Texture, size: number, opacity: number, depthTest = true) {
@@ -791,6 +921,8 @@ export function ThreeGlobeCanvas({
 }: ThreeGlobeCanvasProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const flightCanvasRef = useRef<HTMLCanvasElement>(null)
+  const sourceLabelRef = useRef<HTMLDivElement>(null)
+  const targetLabelRef = useRef<HTMLDivElement>(null)
   const doneRef = useRef(false)
   const latestRef = useRef({ transactions, selected, mode, routesReady, flightStartedAt, onFlightDone, globeSettings })
   const dragRef = useRef({ active: false, startX: 0, startY: 0, startPhi: 0, startTheta: 0, velocity: 0, lastX: 0, lastT: 0 })
@@ -798,6 +930,7 @@ export function ThreeGlobeCanvas({
   const routesSeededRef = useRef(false)
   const lastAddRef = useRef(0)
   const focusMotionRef = useRef({ glow: 1, trail: 0, worldDim: 1 })
+  const focusSequenceRef = useRef({ selectedId: "", startedAt: 0, phase: "idle" as FocusPhase, progress: 0 })
   const landPoints = useMemo(() => createLandPoints(), [])
 
   useEffect(() => {
@@ -810,12 +943,23 @@ export function ThreeGlobeCanvas({
     const animation = animate(motion, {
       glow: mode === "focus" ? [0.74, 1.38, 1.08] : 1,
       trail: mode === "focus" ? [0, 1] : 0,
-      worldDim: mode === "focus" ? 0.74 : 1,
+      worldDim: mode === "focus" ? 0.035 : 1,
       duration: 720,
       ease: "outExpo",
     })
 
     return () => animation.cancel()
+  }, [mode, selected.id])
+
+  useEffect(() => {
+    focusSequenceRef.current = {
+      selectedId: mode === "focus" ? selected.id : "",
+      startedAt: performance.now(),
+      phase: mode === "focus" ? "approach-source" : "idle",
+      progress: 0,
+    }
+    if (sourceLabelRef.current) sourceLabelRef.current.className = "focus-country-label source"
+    if (targetLabelRef.current) targetLabelRef.current.className = "focus-country-label target"
   }, [mode, selected.id])
 
   useEffect(() => {
@@ -928,6 +1072,9 @@ export function ThreeGlobeCanvas({
     const hotTexture = createGlowTexture("rgba(255,248,231,0.95)")
     const warmTexture = createGlowTexture("rgba(251,191,36,0.95)")
     const cyanTexture = createGlowTexture("rgba(103,232,249,0.95)")
+    const focusTexture = createGlowTexture("rgba(251,191,36,0.98)")
+    const focusDot = createGlowSprite(focusTexture, 0.14, 0.98)
+    globeGroup.add(focusDot)
     const largeDots = Array.from({ length: 20 }, () => {
       const dot = createGlowSprite(hotTexture, 0.12, 0.96)
       globeGroup.add(dot)
@@ -1026,16 +1173,43 @@ export function ThreeGlobeCanvas({
       }
 
       const drag = dragRef.current
+      const focusSequence = focusSequenceRef.current
+      let focusFlightProgress = 0
+      if (current.mode === "focus") {
+        if (focusSequence.selectedId !== current.selected.id) {
+          focusSequence.selectedId = current.selected.id
+          focusSequence.startedAt = now
+          focusSequence.phase = "approach-source"
+          focusSequence.progress = 0
+        }
+        const focusAge = now - focusSequence.startedAt
+        if (focusAge < FOCUS_SOURCE_MS) {
+          focusSequence.phase = "approach-source"
+        } else if (focusAge < FOCUS_SOURCE_MS + FOCUS_LABEL_MS) {
+          focusSequence.phase = "source-label"
+        } else if (focusAge < FOCUS_SOURCE_MS + FOCUS_LABEL_MS + FOCUS_FLIGHT_MS) {
+          focusSequence.phase = "flight"
+          focusFlightProgress = easeInOutQuad((focusAge - FOCUS_SOURCE_MS - FOCUS_LABEL_MS) / FOCUS_FLIGHT_MS)
+        } else {
+          focusSequence.phase = "target-label"
+          focusFlightProgress = 1
+        }
+        focusSequence.progress = focusFlightProgress
+      } else {
+        focusSequence.phase = "idle"
+        focusSequence.progress = 0
+      }
+
       if (!drag.active) {
         if (current.mode === "focus") {
-          const midLng = (current.selected.source.lng + current.selected.target.lng) / 2
-          const midLat = (current.selected.source.lat + current.selected.target.lat) / 2
-          const targetPhi = Math.PI / 2 - midLng * (Math.PI / 180)
-          const targetTheta = clamp(midLat * (Math.PI / 180) * 0.72, -0.75, 0.75)
-          let delta = targetPhi - phiRef.current
-          delta = ((delta + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI
-          phiRef.current += delta * 0.045
-          thetaRef.current += (targetTheta - thetaRef.current) * 0.045
+          const fromVec = toVec3(current.selected.source.lat, current.selected.source.lng)
+          const toVec = toVec3(current.selected.target.lat, current.selected.target.lng)
+          let focusVec = fromVec
+          if (focusSequence.phase === "flight" || focusSequence.phase === "target-label") {
+            focusVec = slerp(fromVec, toVec, focusSequence.progress)
+          }
+          const solved = solveRotationForScreenPoint(focusVec, phiRef.current, thetaRef.current, camera, 1.78, 0, 0.18)
+          easeRotationToward(phiRef, thetaRef, solved.phi, solved.theta, focusSequence.phase === "flight" ? 0.16 : 0.09)
         } else {
           phiRef.current += current.globeSettings.rotateSpeed + drag.velocity
         }
@@ -1044,6 +1218,8 @@ export function ThreeGlobeCanvas({
       }
 
       globeGroup.rotation.set(-thetaRef.current, phiRef.current, 0, "YXZ")
+      const focusScaleTarget = current.mode === "focus" ? 1.78 : 1
+      globeGroup.scale.lerp(new THREE.Vector3(focusScaleTarget, focusScaleTarget, focusScaleTarget), 0.06)
 
       if (current.routesReady) {
         if (!routesSeededRef.current) {
@@ -1085,8 +1261,20 @@ export function ThreeGlobeCanvas({
         setFatSegments(shimmerMidLines, shimmerSegments[1])
         setFatSegments(shimmerHeadLines, shimmerSegments[2])
         const showSelected = current.mode === "focus" || (current.mode === "flight" && rawFlight <= 0.08)
-        setFatSegments(selectedBaseLines, showSelected ? selectedRouteSegments(current.selected, current.globeSettings, now, focusMotion.trail, true) : new Float32Array())
-        setFatSegments(selectedLines, showSelected ? selectedRouteSegments(current.selected, current.globeSettings, now, focusMotion.trail) : new Float32Array())
+        if (current.mode === "focus") {
+          const showFocusRoute = focusSequence.progress > 0.01
+          setFatSegments(
+            selectedBaseLines,
+            showFocusRoute ? selectedRouteSegmentsProgress(current.selected, current.globeSettings, focusSequence.progress, focusSequence.phase === "target-label") : new Float32Array(),
+          )
+          setFatSegments(
+            selectedLines,
+            showFocusRoute && focusSequence.phase !== "target-label" ? selectedRouteSegmentsProgress(current.selected, current.globeSettings, focusSequence.progress) : new Float32Array(),
+          )
+        } else {
+          setFatSegments(selectedBaseLines, showSelected ? selectedRouteSegments(current.selected, current.globeSettings, now, focusMotion.trail, true) : new Float32Array())
+          setFatSegments(selectedLines, showSelected ? selectedRouteSegments(current.selected, current.globeSettings, now, focusMotion.trail) : new Float32Array())
+        }
         lastGeometryUpdate = now
       }
 
@@ -1116,8 +1304,9 @@ export function ThreeGlobeCanvas({
       largeMaterial.opacity = 0.28 * current.globeSettings.arcBrightness * (current.globeSettings.largeGlow ?? 1) * ambientRouteDim
       largeTrailMaterial.opacity = 0.68 * current.globeSettings.arcBrightness * (current.globeSettings.largeGlow ?? 1) * ambientRouteDim
       const failedPulse = 0.62 + Math.sin(now * 0.0075) * 0.28
-      failedGlowMaterial.opacity = failedPulse * current.globeSettings.arcBrightness * clamp(ambientRouteDim + 0.25, 0.55, 1.15)
-      failedMaterial.opacity = clamp(failedPulse + 0.16, 0.72, 1) * current.globeSettings.arcBrightness * clamp(ambientRouteDim + 0.35, 0.65, 1.2)
+      const failedFocusDim = current.mode === "focus" ? 0.08 : 1
+      failedGlowMaterial.opacity = failedPulse * current.globeSettings.arcBrightness * failedFocusDim
+      failedMaterial.opacity = clamp(failedPulse + 0.16, 0.72, 1) * current.globeSettings.arcBrightness * failedFocusDim
       normalGlowMaterial.linewidth = 2.1 * (current.globeSettings.normalLineWidth ?? 1) * (current.globeSettings.normalGlow ?? 1)
       normalMaterial.linewidth = 0.9 * (current.globeSettings.normalLineWidth ?? 1)
       shimmerTailMaterial.linewidth = 0.68 * (current.globeSettings.normalLineWidth ?? 1)
@@ -1140,6 +1329,28 @@ export function ThreeGlobeCanvas({
       coastMaterial.opacity = clamp(0.54 + 0.2 * (current.globeSettings.landBrightness ?? 1.65), 0.4, 1)
       coastMaterial.size = 1.8 + 0.85 * clamp(current.globeSettings.landBrightness ?? 1.65, 0.5, 4)
 
+      const sourceLabel = sourceLabelRef.current
+      const targetLabel = targetLabelRef.current
+      if (sourceLabel && targetLabel) {
+        sourceLabel.textContent = `${current.selected.source.country.toUpperCase()} // ${current.selected.source.city.toUpperCase()}`
+        targetLabel.textContent = `${current.selected.target.country.toUpperCase()} // ${current.selected.target.city.toUpperCase()}`
+        positionLabelAtVec(sourceLabel, toVec3(current.selected.source.lat, current.selected.source.lng), globeGroup, camera, width, height)
+        positionLabelAtVec(targetLabel, toVec3(current.selected.target.lat, current.selected.target.lng), globeGroup, camera, width, height)
+        sourceLabel.className = `focus-country-label source ${current.mode === "focus" && focusSequence.phase !== "approach-source" && focusSequence.phase !== "idle" ? "active" : ""}`
+        targetLabel.className = `focus-country-label target ${current.mode === "focus" && focusSequence.phase === "target-label" ? "active" : ""}`
+      }
+
+      focusDot.visible = false
+      if (current.mode === "focus" && (focusSequence.phase === "flight" || focusSequence.phase === "target-label")) {
+        const fromVec = toVec3(current.selected.source.lat, current.selected.source.lng)
+        const toVec = toVec3(current.selected.target.lat, current.selected.target.lng)
+        const point = liftedPoint(fromVec, toVec, focusSequence.progress, current.globeSettings.arcHeight * 0.9)
+        focusDot.position.copy(toVector3(point, 1))
+        focusDot.scale.setScalar(0.11 + Math.sin(now * 0.009) * 0.018)
+        ;(focusDot.material as THREE.SpriteMaterial).opacity = focusSequence.phase === "target-label" ? 0.72 : 0.98
+        focusDot.visible = true
+      }
+
       let dotIndex = 0
       for (const dot of largeDots) dot.visible = false
       let sourcePulseIndex = 0
@@ -1148,6 +1359,7 @@ export function ThreeGlobeCanvas({
       for (const pulse of targetPulses) pulse.visible = false
       const pulseWorldPosition = new THREE.Vector3()
       for (const flow of flowsRef.current) {
+        if (current.mode === "focus") continue
         if (flow.status === "failed") continue
         if (!flow.isLarge) continue
         if (flow.phase === "arriving" && sourcePulseIndex < sourcePulses.length) {
@@ -1222,6 +1434,8 @@ export function ThreeGlobeCanvas({
       hotTexture.dispose()
       warmTexture.dispose()
       cyanTexture.dispose()
+      focusTexture.dispose()
+      ;(focusDot.material as THREE.Material).dispose()
       for (const dot of largeDots) {
         ;(dot.material as THREE.Material).dispose()
       }
@@ -1235,6 +1449,8 @@ export function ThreeGlobeCanvas({
 
   return (
     <div ref={hostRef} className="globe-canvas three-globe-host" aria-label="Three.js global transaction flow model">
+      <div ref={sourceLabelRef} className="focus-country-label source" />
+      <div ref={targetLabelRef} className="focus-country-label target" />
       <canvas ref={flightCanvasRef} className="flight-layer three-flight-layer" />
     </div>
   )

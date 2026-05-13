@@ -13,6 +13,7 @@ import { FuturisticPanel, FuturisticPanelProvider, useBoot } from "./components/
 import { transactions as baseTransactions, type Transaction } from "./data/transactions"
 import { useLiveDashboard } from "./hooks/useLiveDashboard"
 import { cn, formatCompactMoney, formatEta, formatMoney } from "./lib/utils"
+import { LoadingDemosPage } from "./components/LoadingDemos"
 
 type Mode = "monitor" | "focus"
 
@@ -28,7 +29,7 @@ const STARTUP_STEPS = [
   "MONITOR ONLINE",
 ]
 
-function StartupLoading({ onComplete }: { onComplete: () => void }) {
+export function StartupLoading({ onComplete }: { onComplete: () => void }) {
   const [stepIndex, setStepIndex] = useState(0)
   const [exiting, setExiting] = useState(false)
 
@@ -129,6 +130,45 @@ function TransactionRow({
         <span>{formatCompactMoney(Math.max(transaction.source.amount, transaction.target.amount))}</span>
       </div>
     </button>
+  )
+}
+
+function FocusTelemetry({ transaction }: { transaction: Transaction }) {
+  const stablePoint = transaction.source.chain ? transaction.source : transaction.target.chain ? transaction.target : null
+  const stableLabel = stablePoint ? `${stablePoint.currency}/${stablePoint.chain}` : "FIAT"
+  const directionLabel = transaction.direction === "on-ramp" ? "DEPOSIT" : "WITHDRAW"
+  const amount = Math.max(transaction.source.amount, transaction.target.amount)
+  const items = [
+    ["FLOW", `${directionLabel} · ${transaction.source.currency} → ${transaction.target.currency}`],
+    ["STABLECOIN", stableLabel],
+    ["RAIL", transaction.rail],
+    ["AMOUNT", formatCompactMoney(amount)],
+    ["FX / FEE", `${transaction.exchangeRate} · ${formatMoney(transaction.fee, "USD")}`],
+    ["RISK / POOL", `${transaction.riskScore} · ${transaction.liquidityPool}`],
+  ]
+
+  return (
+    <FuturisticPanel
+      className="hud-panel focus-telemetry"
+      revealDelay={120}
+      label="FS-FOCUS // TX"
+      cornerSize={8}
+      aria-label="Focused transaction telemetry"
+    >
+      <div className="focus-telemetry-header">
+        <span>{transaction.id}</span>
+        <span>{transaction.source.city} → {transaction.target.city}</span>
+        <span>{transaction.status}</span>
+      </div>
+      <div className="focus-telemetry-grid">
+        {items.map(([label, value], index) => (
+          <div className="focus-telemetry-item" style={{ ["--telemetry-delay" as string]: `${index * 220}ms` }} key={label}>
+            <span className="focus-telemetry-label">{label}</span>
+            <span className="focus-telemetry-value">{value}</span>
+          </div>
+        ))}
+      </div>
+    </FuturisticPanel>
   )
 }
 
@@ -381,6 +421,8 @@ function MonitorApp() {
           </div>
         </FuturisticPanel>
 
+        {mode === "focus" && <FocusTelemetry key={selected.id} transaction={selected} />}
+
         {/* HUD: Bottom detail bar */}
         <FuturisticPanel
           className="hud-panel panel-detail"
@@ -437,6 +479,12 @@ function MonitorApp() {
 export function App() {
   const [startupComplete, setStartupComplete] = useState(false)
   const completeStartup = useCallback(() => setStartupComplete(true), [])
+
+  const isDemo =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("demos")
+
+  if (isDemo) return <LoadingDemosPage />
 
   if (!startupComplete) return <StartupLoading onComplete={completeStartup} />
 
