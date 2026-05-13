@@ -1,13 +1,10 @@
 import { useState } from "react"
 import { Settings } from "lucide-react"
-import type { GlobeRenderer } from "../App"
 import type { GlobeSettingsState } from "./ArcOverlay"
 
 type GlobeSettingsProps = {
   settings: GlobeSettingsState
   onChange: (settings: GlobeSettingsState) => void
-  renderer: GlobeRenderer
-  onRendererChange: (renderer: GlobeRenderer) => void
 }
 
 function SettingSlider({
@@ -46,7 +43,7 @@ function SettingSlider({
   )
 }
 
-export function GlobeSettings({ settings, onChange, renderer, onRendererChange }: GlobeSettingsProps) {
+export function GlobeSettings({ settings, onChange }: GlobeSettingsProps) {
   const [open, setOpen] = useState(false)
 
   const update = (patch: Partial<GlobeSettingsState>) => {
@@ -66,28 +63,6 @@ export function GlobeSettings({ settings, onChange, renderer, onRendererChange }
       {open && (
         <div className="settings-panel">
           <div className="settings-title">GLOBE SETTINGS</div>
-          <div className="settings-row">
-            <div className="settings-row-header">
-              <span className="settings-row-label">Renderer</span>
-              <span className="settings-row-value">{renderer === "canvas" ? "Stable" : "Preview"}</span>
-            </div>
-            <div className="renderer-switch">
-              <button
-                className={renderer === "canvas" ? "active" : undefined}
-                type="button"
-                onClick={() => onRendererChange("canvas")}
-              >
-                Canvas
-              </button>
-              <button
-                className={renderer === "three" ? "active" : undefined}
-                type="button"
-                onClick={() => onRendererChange("three")}
-              >
-                Three Preview
-              </button>
-            </div>
-          </div>
           <SettingSlider
             label="Arc Height"
             value={settings.arcHeight}
