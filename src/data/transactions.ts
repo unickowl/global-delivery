@@ -11,7 +11,7 @@ export type FlowPoint = {
 
 export type Transaction = {
   id: string
-  status: "routing" | "settled" | "pending"
+  status: "routing" | "settled" | "pending" | "failed"
   direction: "on-ramp" | "off-ramp"
   source: FlowPoint
   target: FlowPoint

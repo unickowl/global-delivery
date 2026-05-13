@@ -125,11 +125,17 @@ export function GlobeSettings({ settings, onChange }: GlobeSettingsProps) {
           </Section>
 
           <Section title="Flow">
-            <SettingSlider label="Flow Count" value={settings.flowCount} min={20} max={220} step={10} format={(v) => Math.round(v).toString()} onChange={(v) => update({ flowCount: Math.round(v) })} />
+            <SettingSlider label="Flow Count" value={settings.flowCount} min={20} max={300} step={10} format={(v) => Math.round(v).toString()} onChange={(v) => update({ flowCount: Math.round(v) })} />
             <SettingSlider label="Draw Duration" value={settings.drawDuration} min={600} max={5000} step={100} format={(v) => `${(v / 1000).toFixed(1)}s`} onChange={(v) => update({ drawDuration: v })} />
             <SettingSlider label="Large Threshold" value={settings.largeThreshold} min={100000} max={5000000} step={50000} format={(v) => `$${(v / 1000000).toFixed(2)}M`} onChange={(v) => update({ largeThreshold: v })} />
             <SettingSlider label="Large Tx Slots" value={settings.maxLargeAnimated} min={1} max={20} step={1} format={(v) => Math.round(v).toString()} onChange={(v) => update({ maxLargeAnimated: Math.round(v) })} />
             <SettingToggle label="Animate Small Trades" checked={settings.smallAnimate} onChange={(v) => update({ smallAnimate: v })} />
+          </Section>
+
+          <Section title="Transactions">
+            <SettingSlider label="Buffer Size" value={settings.transactionBufferSize} min={20} max={300} step={10} format={(v) => Math.round(v).toString()} onChange={(v) => update({ transactionBufferSize: Math.round(v), flowCount: Math.round(v) })} />
+            <SettingSlider label="Queue Rows" value={settings.transactionListSize} min={5} max={30} step={1} format={(v) => Math.round(v).toString()} onChange={(v) => update({ transactionListSize: Math.round(v) })} />
+            <SettingSlider label="Stream Rate" value={settings.streamIntervalMs} min={400} max={4000} step={100} format={(v) => `${(v / 1000).toFixed(1)}s`} onChange={(v) => update({ streamIntervalMs: Math.round(v) })} />
           </Section>
 
           <Section title="Normal Lines">

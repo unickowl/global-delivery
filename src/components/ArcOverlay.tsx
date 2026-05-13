@@ -22,6 +22,9 @@ export type GlobeSettingsState = {
   largeGlow: number
   largeDotScale: number
   largeFlightSpeed: number
+  transactionBufferSize: number
+  transactionListSize: number
+  streamIntervalMs: number
   surfaceBrightness: number
   landBrightness: number
   /** Show film-grain noise on each HUD panel. */

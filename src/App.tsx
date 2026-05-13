@@ -37,25 +37,37 @@ function TransactionRow({
   onClick: () => void
   revealDelay: number
 }) {
+  const stablePoint = transaction.source.chain ? transaction.source : transaction.target.chain ? transaction.target : null
+  const stableLabel = stablePoint ? `${stablePoint.currency}/${stablePoint.chain}` : transaction.target.currency
+  const directionLabel = transaction.direction === "on-ramp" ? "DEPOSIT" : "WITHDRAW"
+
   return (
-    <FuturisticPanel
-      className={cn("tx-item", active && "active")}
-      selected={active}
-      revealDelay={revealDelay}
-      cornerSize={6}
-      strokeWidth={1}
+    <button
+      className={cn("tx-item", `tx-${transaction.direction}`, active && "active")}
       onClick={onClick}
-      role="button"
-      tabIndex={0}
+      style={{ ["--tx-reveal-delay" as string]: `${revealDelay}ms` }}
+      type="button"
     >
-      <div>
+      <div className="tx-topline">
+        <span className="tx-direction">{directionLabel}</span>
         <span className="tx-id">{transaction.id}</span>
-        <span className={cn("status-badge", transaction.status)}>{transaction.status}</span>
+        <span className={cn("tx-status", transaction.status)}>
+          <span className="tx-status-dot" />
+          {transaction.status}
+        </span>
       </div>
       <div className="tx-route-text">
-        {transaction.source.city} → {transaction.target.city} · {formatCompactMoney(Math.max(transaction.source.amount, transaction.target.amount))}
+        {transaction.source.city} → {transaction.target.city}
       </div>
-    </FuturisticPanel>
+      <div className="tx-meta-line">
+        <span>{transaction.source.currency} → {transaction.target.currency}</span>
+        <span>{stableLabel}</span>
+      </div>
+      <div className="tx-meta-line">
+        <span>{transaction.rail}</span>
+        <span>{formatCompactMoney(Math.max(transaction.source.amount, transaction.target.amount))}</span>
+      </div>
+    </button>
   )
 }
 
@@ -118,7 +130,7 @@ export const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
   drawDuration: 2200,
   smallAnimate: true,
   largeThreshold: 750000,
-  flowCount: 140,
+  flowCount: 300,
   normalLineWidth: 1,
   normalGlow: 1,
   normalHighlight: 1,
@@ -128,6 +140,9 @@ export const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
   largeGlow: 1,
   largeDotScale: 1,
   largeFlightSpeed: 1,
+  transactionBufferSize: 300,
+  transactionListSize: 15,
+  streamIntervalMs: 1400,
   surfaceBrightness: 1.75,
   landBrightness: 1.65,
   grainEnabled: true,
@@ -162,10 +177,13 @@ function grainCssVars(settings: GlobeSettingsState): CSSProperties {
 }
 
 export function App() {
-  const live = useLiveDashboard()
   const [selectedId, setSelectedId] = useState(baseTransactions[0].id)
   const [mode, setMode] = useState<Mode>("monitor")
   const [globeSettings, setGlobeSettings] = useState<GlobeSettingsState>(DEFAULT_GLOBE_SETTINGS)
+  const live = useLiveDashboard({
+    maxTransactions: globeSettings.transactionBufferSize,
+    streamIntervalMs: globeSettings.streamIntervalMs,
+  })
   const phiRef = useRef(0)
   const thetaRef = useRef(0.22)
 
@@ -215,12 +233,16 @@ export function App() {
           <ReplayButton />
         </FuturisticPanel>
 
-        {/* HUD: Top-right MAGI nodes */}
-        <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01 // MAGI">
-          {["CASPER", "MELCHIOR", "BALTHASAR"].map((name) => (
+        {/* HUD: Top-right operations status */}
+        <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01 // OPS">
+          {[
+            ["KYT", `${live.transactions.filter((tx) => tx.riskScore >= 30 || tx.status === "failed").length} watch`],
+            ["LIQ", `${Math.max(...live.pools.map((pool) => pool.utilization))}% peak`],
+            ["RAIL", `${live.transactions.filter((tx) => tx.status === "failed").length} fail`],
+          ].map(([name, value]) => (
             <div className="magi-node" key={name}>
               <span className="magi-name">{name}</span>
-              <span className="magi-status">OK</span>
+              <span className="magi-status">{value}</span>
             </div>
           ))}
         </FuturisticPanel>
@@ -255,15 +277,17 @@ export function App() {
         {/* HUD: Right transaction queue */}
         <FuturisticPanel className="hud-panel panel-transactions" revealDelay={360} label="FS-04 // QUEUE">
           <div className="hud-label">Transaction Queue</div>
-          {live.transactions.slice(0, 9).map((tx, i) => (
-            <TransactionRow
-              key={tx.id}
-              transaction={tx}
-              active={tx.id === selected.id}
-              onClick={() => focusTransaction(tx)}
-              revealDelay={500 + i * 60}
-            />
-          ))}
+          <div className="tx-list-scroll">
+            {live.transactions.slice(0, globeSettings.transactionListSize).map((tx, i) => (
+              <TransactionRow
+                key={tx.id}
+                transaction={tx}
+                active={tx.id === selected.id}
+                onClick={() => focusTransaction(tx)}
+                revealDelay={500 + i * 60}
+              />
+            ))}
+          </div>
         </FuturisticPanel>
 
         {/* HUD: Bottom detail bar */}
@@ -303,16 +327,6 @@ export function App() {
               <span className="ds-val" style={{ color: selected.riskScore < 30 ? "var(--hud-green)" : "var(--hud-yellow)" }}>{selected.riskScore}</span>
             </div>
           </div>
-        </FuturisticPanel>
-
-        {/* HUD: Bottom-left coords */}
-        <FuturisticPanel
-          className="hud-panel panel-coords"
-          revealDelay={520}
-          cornerSize={4}
-          label="FS-06"
-        >
-          PHI {phiRef.current.toFixed(3)} · θ {thetaRef.current.toFixed(3)} · {selected.source.city.toUpperCase().slice(0, 3)} → {selected.target.city.toUpperCase().slice(0, 3)}
         </FuturisticPanel>
 
         {/* Globe Settings Panel */}

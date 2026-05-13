@@ -28,6 +28,7 @@ type FlowPhase = "arriving" | "flying" | "landing" | "drawing" | "breathing" | "
 type FlowNode = { city: string; country: string; lat: number; lng: number; vec: Vec3 }
 type FlowTx = {
   id: string
+  status: Transaction["status"]
   from: FlowNode
   to: FlowNode
   amount: number
@@ -48,7 +49,7 @@ type FlowTx = {
   animations: Array<ReturnType<typeof animate>>
 }
 
-const MAX_FLOWS = 280
+const MAX_FLOWS = 300
 const ARRIVING_MS = 1600
 const FLYING_MS = 3200
 const LANDING_MS = 1200
@@ -182,6 +183,7 @@ function createFlow(now: number, nodes: FlowNode[], settings: GlobeSettingsState
 
   return {
     id: `F-${Math.random().toString(16).slice(2, 8).toUpperCase()}`,
+    status: "routing",
     from,
     to,
     amount,
@@ -189,6 +191,54 @@ function createFlow(now: number, nodes: FlowNode[], settings: GlobeSettingsState
     phase,
     startedAt: now - phaseAge,
     phaseStartedAt: now - phaseAge,
+    duration,
+    usesAnime: false,
+    drawProgress: phase === "drawing" ? 0 : 1,
+    fadeAlpha: 1,
+    sourcePulse: 0,
+    targetPulse: 0,
+    flightProgress: 0,
+    breathAlpha: 0.4,
+    arcHeight,
+    arcPoints: createArcPoints(from.vec, to.vec, settings.arcHeight * arcHeight, ARC_SEGMENTS),
+    animations: [],
+  }
+}
+
+function flowNodeFromPoint(point: Transaction["source"]): FlowNode {
+  return {
+    city: point.city,
+    country: point.country,
+    lat: point.lat,
+    lng: point.lng,
+    vec: toVec3(point.lat, point.lng),
+  }
+}
+
+function flowArcHeight(id: string) {
+  return 0.55 + (hashText(id) % 45) / 100
+}
+
+function createTransactionFlow(now: number, transaction: Transaction, settings: GlobeSettingsState, largeCount: number): FlowTx {
+  const from = flowNodeFromPoint(transaction.source)
+  const to = flowNodeFromPoint(transaction.target)
+  const amount = Math.max(transaction.source.amount, transaction.target.amount)
+  const failed = transaction.status === "failed"
+  const isLarge = !failed && amount >= settings.largeThreshold && largeCount < settings.maxLargeAnimated
+  const duration = isLarge ? 34_000 : 80_000 + (hashText(transaction.id) % 45_000)
+  const phase = failed ? "breathing" : isLarge ? "arriving" : settings.smallAnimate ? "drawing" : "breathing"
+  const arcHeight = flowArcHeight(transaction.id)
+
+  return {
+    id: transaction.id,
+    status: transaction.status,
+    from,
+    to,
+    amount,
+    isLarge,
+    phase,
+    startedAt: now,
+    phaseStartedAt: now,
     duration,
     usesAnime: false,
     drawProgress: phase === "drawing" ? 0 : 1,
@@ -312,12 +362,28 @@ function startFlowAnimation(flow: FlowTx, settings: GlobeSettingsState) {
   }
 }
 
-function updateFlows(now: number, flows: FlowTx[], nodes: FlowNode[], settings: GlobeSettingsState, lastAddRef: MutableRefObject<number>) {
-  for (const tx of flows) {
-    if (now - tx.startedAt >= tx.duration && tx.phase !== "fading") {
-      startFlowFade(tx, now)
-    }
+function updateFlows(now: number, flows: FlowTx[], transactions: Transaction[], settings: GlobeSettingsState, lastAddRef: MutableRefObject<number>) {
+  const targetCount = clamp(Math.round(settings.flowCount), 20, MAX_FLOWS)
+  const activeTransactions = transactions.slice(0, targetCount)
+  const activeIds = new Set(activeTransactions.map((tx) => tx.id))
 
+  for (const flow of flows) {
+    if (!activeIds.has(flow.id) && flow.phase !== "fading") {
+      startFlowFade(flow, now)
+    }
+  }
+
+  let largeCount = flows.filter((tx) => tx.isLarge && tx.phase !== "fading").length
+  for (const transaction of activeTransactions) {
+    if (flows.some((flow) => flow.id === transaction.id)) continue
+    const flow = createTransactionFlow(now, transaction, settings, largeCount)
+    if (flow.isLarge) largeCount += 1
+    startFlowAnimation(flow, settings)
+    flows.unshift(flow)
+    lastAddRef.current = now
+  }
+
+  for (const tx of flows) {
     if (tx.usesAnime) continue
 
     const phaseAge = now - tx.phaseStartedAt
@@ -350,19 +416,6 @@ function updateFlows(now: number, flows: FlowTx[], nodes: FlowNode[], settings: 
       cancelFlowAnimations(flows[i])
       flows.splice(i, 1)
     }
-  }
-
-  const targetCount = clamp(Math.round(settings.flowCount), 20, MAX_FLOWS)
-  if (flows.length < targetCount && now - lastAddRef.current > 1200 + Math.random() * 1200) {
-    const batch = Math.min(targetCount - flows.length, 1 + Math.floor(Math.random() * 3))
-    let largeCount = flows.filter((tx) => tx.isLarge && tx.phase !== "fading").length
-    for (let i = 0; i < batch; i += 1) {
-      const tx = createFlow(now, nodes, settings, largeCount)
-      if (tx.isLarge) largeCount += 1
-      startFlowAnimation(tx, settings)
-      flows.push(tx)
-    }
-    lastAddRef.current = now
   }
 }
 
@@ -408,6 +461,7 @@ function lineSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState, la
   const active = flows.slice(0, targetCount)
 
   for (const flow of active) {
+    if (flow.status === "failed") continue
     if (flow.isLarge !== largeOnly) continue
     const fade = flow.usesAnime ? flow.fadeAlpha : flow.phase === "fading" ? 1 - clamp((now - flow.phaseStartedAt) / FADING_MS, 0, 1) : 1
     if (fade <= 0.03) continue
@@ -445,6 +499,7 @@ function shimmerSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState,
   const targetCount = clamp(Math.round(settings.flowCount), 20, MAX_FLOWS)
   const normalFlowSpeed = settings.normalFlowSpeed ?? 1
   for (const flow of flows.slice(0, targetCount)) {
+    if (flow.status === "failed") continue
     if (flow.isLarge || flow.phase === "arriving" || flow.phase === "landing" || flow.phase === "fading") continue
     const drawLimit = flow.phase === "drawing" ? clamp(flow.drawProgress, 0, 1) : 1
     if (drawLimit <= 0.05) continue
@@ -461,12 +516,29 @@ function largeTrailSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsSta
   const positions: number[] = []
   const trailLength = settings.largeTrailLength ?? 0.24
   for (const flow of flows) {
+    if (flow.status === "failed") continue
     if (!flow.isLarge || flow.phase !== "flying") continue
     const head = clamp(flow.flightProgress, 0, 1)
     const tail = Math.max(0, head - trailLength)
     const start = Math.floor(tail * (flow.arcPoints.length - 1))
     const end = Math.max(start + 1, Math.floor(head * (flow.arcPoints.length - 1)))
     for (let i = start; i < Math.min(end, flow.arcPoints.length - 1); i += 1) {
+      const a = flow.arcPoints[i]
+      const b = flow.arcPoints[i + 1]
+      positions.push(a[0], a[1], a[2], b[0], b[1], b[2])
+    }
+  }
+  return new Float32Array(positions)
+}
+
+function failedSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState, now: number) {
+  const positions: number[] = []
+  const targetCount = clamp(Math.round(settings.flowCount), 20, MAX_FLOWS)
+  for (const flow of flows.slice(0, targetCount)) {
+    if (flow.status !== "failed") continue
+    const fade = flow.phase === "fading" ? 1 - clamp((now - flow.phaseStartedAt) / FADING_MS, 0, 1) : flow.fadeAlpha
+    if (fade <= 0.03) continue
+    for (let i = 0; i < flow.arcPoints.length - 1; i += 1) {
       const a = flow.arcPoints[i]
       const b = flow.arcPoints[i + 1]
       positions.push(a[0], a[1], a[2], b[0], b[1], b[2])
@@ -703,14 +775,15 @@ export function ThreeGlobeCanvas({
 
   useEffect(() => {
     const settings = latestRef.current.globeSettings
-    const nodes = buildNodes(latestRef.current.transactions)
     const now = performance.now()
-    flowsRef.current = Array.from({ length: Math.min(120, settings.flowCount) }, (_, index) => {
-      const largeCount = flowsRef.current.filter((tx) => tx.isLarge).length
-      const tx = createFlow(now - index * 67, nodes, settings, largeCount, true)
-      tx.breathAlpha = 0.25 + Math.random() * 0.75
-      tx.usesAnime = true
-      return tx
+    let largeCount = 0
+    flowsRef.current = latestRef.current.transactions.slice(0, Math.min(MAX_FLOWS, settings.flowCount)).map((transaction, index) => {
+      const flow = createTransactionFlow(now - index * 67, transaction, settings, largeCount)
+      if (flow.isLarge) largeCount += 1
+      flow.phase = "breathing"
+      flow.drawProgress = 1
+      flow.breathAlpha = 0.25 + Math.random() * 0.75
+      return flow
     })
     lastAddRef.current = now
   }, [])
@@ -803,6 +876,8 @@ export function ThreeGlobeCanvas({
     const shimmerHeadLines = createFatSegments("#f5feff", 0.34, 1.45, lineResolution)
     const largeLines = createFatSegments("#38bdf8", 0.32, 1.6, lineResolution)
     const largeTrailLines = createFatSegments("#fbbf24", 0.72, 3.1, lineResolution)
+    const failedGlowLines = createFatSegments("#ff1f1f", 0.7, 5.2, lineResolution)
+    const failedLines = createFatSegments("#ff5555", 0.95, 2.8, lineResolution)
     const selectedBaseLines = createFatSegments("#ff2a2a", 0.34, 2.1, lineResolution)
     const selectedLines = createFatSegments("#ffe04d", 0.92, 3.4, lineResolution)
     globeGroup.add(
@@ -814,6 +889,8 @@ export function ThreeGlobeCanvas({
       shimmerHeadLines,
       largeLines,
       largeTrailLines,
+      failedGlowLines,
+      failedLines,
       selectedBaseLines,
       selectedLines,
     )
@@ -938,8 +1015,7 @@ export function ThreeGlobeCanvas({
 
       globeGroup.rotation.set(-thetaRef.current, phiRef.current, 0, "YXZ")
 
-      const nodes = buildNodes(current.transactions)
-      updateFlows(now, flowsRef.current, nodes, current.globeSettings, lastAddRef)
+      updateFlows(now, flowsRef.current, current.transactions, current.globeSettings, lastAddRef)
       if (Math.abs(current.globeSettings.arcHeight - lastArcHeight) > 0.001) {
         for (const flow of flowsRef.current) {
           flow.arcPoints = createArcPoints(flow.from.vec, flow.to.vec, current.globeSettings.arcHeight * flow.arcHeight, ARC_SEGMENTS)
@@ -956,6 +1032,9 @@ export function ThreeGlobeCanvas({
         setFatSegments(normalLines, normalSegments)
         setFatSegments(largeLines, lineSegmentsFromFlows(flowsRef.current, current.globeSettings, true, now))
         setFatSegments(largeTrailLines, largeTrailSegmentsFromFlows(flowsRef.current, current.globeSettings))
+        const failedSegments = failedSegmentsFromFlows(flowsRef.current, current.globeSettings, now)
+        setFatSegments(failedGlowLines, failedSegments)
+        setFatSegments(failedLines, failedSegments)
         const shimmerSegments = shimmerSegmentsFromFlows(flowsRef.current, current.globeSettings, now)
         setFatSegments(shimmerTailLines, shimmerSegments[0])
         setFatSegments(shimmerMidLines, shimmerSegments[1])
@@ -974,6 +1053,8 @@ export function ThreeGlobeCanvas({
       const shimmerHeadMaterial = shimmerHeadLines.material as LineMaterial
       const largeMaterial = largeLines.material as LineMaterial
       const largeTrailMaterial = largeTrailLines.material as LineMaterial
+      const failedGlowMaterial = failedGlowLines.material as LineMaterial
+      const failedMaterial = failedLines.material as LineMaterial
       const selectedBaseMaterial = selectedBaseLines.material as LineMaterial
       const selectedMaterial = selectedLines.material as LineMaterial
       const focusMotion = focusMotionRef.current
@@ -989,6 +1070,9 @@ export function ThreeGlobeCanvas({
       shimmerHeadMaterial.opacity = 0.34 * shimmerBaseOpacity
       largeMaterial.opacity = 0.28 * current.globeSettings.arcBrightness * (current.globeSettings.largeGlow ?? 1) * ambientRouteDim
       largeTrailMaterial.opacity = 0.68 * current.globeSettings.arcBrightness * (current.globeSettings.largeGlow ?? 1) * ambientRouteDim
+      const failedPulse = 0.62 + Math.sin(now * 0.0075) * 0.28
+      failedGlowMaterial.opacity = failedPulse * current.globeSettings.arcBrightness * clamp(ambientRouteDim + 0.25, 0.55, 1.15)
+      failedMaterial.opacity = clamp(failedPulse + 0.16, 0.72, 1) * current.globeSettings.arcBrightness * clamp(ambientRouteDim + 0.35, 0.65, 1.2)
       normalGlowMaterial.linewidth = 2.1 * (current.globeSettings.normalLineWidth ?? 1) * (current.globeSettings.normalGlow ?? 1)
       normalMaterial.linewidth = 0.9 * (current.globeSettings.normalLineWidth ?? 1)
       shimmerTailMaterial.linewidth = 0.68 * (current.globeSettings.normalLineWidth ?? 1)
@@ -996,6 +1080,8 @@ export function ThreeGlobeCanvas({
       shimmerHeadMaterial.linewidth = 1.38 * (current.globeSettings.normalLineWidth ?? 1)
       largeMaterial.linewidth = 1.35
       largeTrailMaterial.linewidth = 2.4 * (current.globeSettings.largeDotScale ?? 1)
+      failedGlowMaterial.linewidth = 5.4 + Math.sin(now * 0.0075) * 1.1
+      failedMaterial.linewidth = 2.7 + Math.sin(now * 0.0075) * 0.55
       selectedBaseMaterial.opacity = 0.3 * focusMotion.glow
       selectedMaterial.opacity = 0.82 * focusMotion.glow
       selectedBaseMaterial.linewidth = 1.6 + focusMotion.glow * 0.35
@@ -1017,6 +1103,7 @@ export function ThreeGlobeCanvas({
       for (const pulse of targetPulses) pulse.visible = false
       const pulseWorldPosition = new THREE.Vector3()
       for (const flow of flowsRef.current) {
+        if (flow.status === "failed") continue
         if (!flow.isLarge) continue
         if (flow.phase === "arriving" && sourcePulseIndex < sourcePulses.length) {
           const progress = flow.usesAnime ? flow.sourcePulse : easeOutCubic(clamp((now - flow.phaseStartedAt) / ARRIVING_MS, 0, 1))
