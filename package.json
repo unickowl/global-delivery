@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
+    "animejs": "^4.4.1",
     "clsx": "latest",
     "lucide-react": "latest",
     "react": "latest",

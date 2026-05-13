@@ -108,21 +108,54 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 .hud-panel {
   position: absolute;
   z-index: 10;
-  border: 1px solid var(--panel-border);
   background: var(--panel-bg);
   backdrop-filter: blur(12px);
   font-size: 14px;
-  transition: opacity 500ms ease, transform 500ms cubic-bezier(0.2, 0.8, 0.2, 1),
-              border-color 600ms ease, background 600ms ease;
+  transition: background 600ms ease;
 }
 
-.hud-panel::before {
-  content: '';
+/* ===== Section 4b — Futuristic Panel SVG layers ===== */
+.futuristic-panel {
+  isolation: isolate;
+}
+
+/* .hud-panel already provides position: absolute as the positioning context.
+   Nested panels (e.g. .tx-item inside .panel-transactions) need their own. */
+.futuristic-panel:not(.hud-panel) {
+  position: relative;
+}
+
+.futuristic-panel > .fp-border,
+.futuristic-panel > .fp-corner {
   position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(125, 246, 255, 0.3), transparent);
-  transition: background 600ms ease;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: -1;
+}
+
+.futuristic-panel > .fp-corner {
+  /* inset overridden by inline style (offset can exceed panel bounds) */
+  inset: auto;
+}
+
+.boot-replay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  color: var(--label-color);
+  border: 1px solid rgba(125, 246, 255, 0.18);
+  background: rgba(125, 246, 255, 0.04);
+  transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.boot-replay:hover {
+  color: var(--hud-cyan);
+  border-color: rgba(125, 246, 255, 0.45);
+  background: rgba(125, 246, 255, 0.1);
 }
 
 .hud-label {
@@ -171,8 +204,12 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  border: 1px solid var(--panel-border);
   background: rgba(0, 200, 255, 0.04);
+  border-left: 1px solid var(--panel-border);
+}
+
+.magi-node:first-child {
+  border-left: none;
 }
 
 .magi-name {
@@ -286,20 +323,19 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   width: 100%;
   text-align: left;
   color: inherit;
-  border: 1px solid rgba(160, 238, 255, 0.1);
   padding: 10px;
-  margin-bottom: 6px;
-  transition: border-color 180ms ease, background 180ms ease;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 180ms ease;
+  outline: none;
 }
 
 .tx-item:hover {
-  border-color: rgba(125, 246, 255, 0.3);
   background: rgba(125, 246, 255, 0.04);
 }
 
 .tx-item.active {
-  border-left: 2px solid var(--hud-cyan);
-  background: rgba(125, 246, 255, 0.06);
+  background: rgba(255, 141, 10, 0.06);
 }
 
 .tx-id {
@@ -382,297 +418,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   font-variant-numeric: tabular-nums;
 }
 
-.engage-btn {
-  padding: 10px 20px;
-  border: 1px solid rgba(255, 61, 60, 0.4);
-  background: rgba(255, 40, 30, 0.08);
-  color: #ff6b6b;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  position: relative;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.engage-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 60, 40, 0.15), transparent);
-  animation: engageSweep 2s linear infinite;
-}
-
-.engage-btn:hover {
-  border-color: rgba(255, 80, 60, 0.7);
-  box-shadow: 0 0 20px rgba(255, 60, 40, 0.2);
-}
-
-/* ===== Section 7 — NERV Alert Mode ===== */
-.app-shell.is-nerv {
-  --panel-border: rgba(255, 40, 20, 0.2);
-  --panel-bg: rgba(10, 4, 6, 0.8);
-  --label-color: rgba(255, 176, 158, 0.78);
-  --text-dim: rgba(255, 205, 194, 0.82);
-}
-
-.app-shell.is-nerv::after {
-  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px);
-  animation: nervFlicker 0.1s step-end infinite;
-  opacity: 0.04;
-}
-
-.app-shell.is-nerv .hud-panel::before {
-  background: linear-gradient(90deg, transparent, rgba(255, 60, 40, 0.3), transparent);
-}
-
-/* ===== Section 8 — Flight/NERV Overlay Elements ===== */
-.nerv-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  pointer-events: none;
-}
-
-.nerv-overlay.active {
-  pointer-events: auto;
-}
-
-.nerv-warn-bar {
-  background:
-    repeating-linear-gradient(
-      -45deg,
-      rgba(255, 60, 40, 0.15) 0 8px,
-      transparent 8px 16px
-    );
-  border-bottom: 2px solid rgba(255, 60, 40, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 16px;
-  font-size: 12px;
-  font-weight: 800;
-  color: #ff4a3a;
-  letter-spacing: 0.2em;
-  animation: warnBlink 1s step-end infinite;
-}
-
-.nerv-warn-bottom {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  padding: 10px 16px;
-  border-top: 2px solid rgba(255, 60, 40, 0.3);
-  background: rgba(10, 4, 6, 0.8);
-  font-size: 12px;
-  color: rgba(255, 205, 194, 0.82);
-  letter-spacing: 0.1em;
-}
-
-.nerv-sender,
-.nerv-receiver {
-  position: absolute;
-  top: 25%;
-  width: min(240px, 28vw);
-  border: 1px solid rgba(255, 60, 40, 0.2);
-  background: rgba(10, 4, 6, 0.8);
-  backdrop-filter: blur(12px);
-  padding: 16px;
-  animation: flightPanelIn 560ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.nerv-sender {
-  left: 22px;
-}
-
-.nerv-receiver {
-  right: 22px;
-  top: 38%;
-}
-
-.nerv-entity {
-  font-size: 16px;
-  font-weight: 700;
-  color: #ffcec8;
-  margin-bottom: 4px;
-}
-
-.nerv-loc {
-  font-size: 14px;
-  color: rgba(255, 205, 194, 0.82);
-}
-
-.nerv-amount {
-  font-size: 20px;
-  font-weight: 800;
-  color: #ff6b5a;
-  text-shadow: 0 0 15px rgba(255, 60, 40, 0.3);
-  margin-top: 10px;
-}
-
-.nerv-panel-label {
-  font-size: 12px;
-  color: rgba(255, 176, 158, 0.78);
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  margin-bottom: 8px;
-}
-
-.nerv-tags {
-  display: flex;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.nerv-tag {
-  padding: 2px 8px;
-  border: 1px solid rgba(255, 60, 40, 0.25);
-  font-size: 12px;
-  color: rgba(255, 205, 194, 0.82);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.nerv-stages {
-  display: flex;
-  gap: 8px;
-  position: absolute;
-  top: 48px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100% - 32px);
-}
-
-.nerv-stage {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  border: 1px solid rgba(255, 60, 40, 0.15);
-  background: rgba(10, 4, 6, 0.7);
-  font-size: 12px;
-  color: rgba(255, 205, 194, 0.72);
-  white-space: nowrap;
-}
-
-.nerv-stage.active {
-  color: #ffcec8;
-  border-color: rgba(255, 60, 40, 0.5);
-  box-shadow: 0 0 12px rgba(255, 60, 40, 0.15);
-}
-
-.jp-deco {
-  position: absolute;
-  writing-mode: vertical-rl;
-  color: rgba(255, 120, 100, 0.24);
-  font-size: 12px;
-  letter-spacing: 0.3em;
-}
-
-.jp-left {
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.jp-right {
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.cancel-nerv {
-  position: absolute;
-  top: 44px;
-  right: 16px;
-  z-index: 4;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #e8fbff;
-  border: 1px solid rgba(255, 60, 40, 0.4);
-  background: rgba(24, 8, 10, 0.72);
-  padding: 8px 12px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.cancel-nerv:hover {
-  border-color: rgba(255, 80, 60, 0.7);
-  background: rgba(48, 12, 16, 0.88);
-}
-
-.nerv-confirmed {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  z-index: 5;
-  animation: flightPanelIn 400ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-.nerv-confirmed-text {
-  font-size: clamp(20px, 3.5vw, 36px);
-  font-weight: 800;
-  color: #4ade80;
-  text-shadow: 0 0 40px rgba(74, 222, 128, 0.5);
-  letter-spacing: 0.1em;
-}
-
-.nerv-confirmed-jp {
-  font-size: clamp(14px, 2vw, 22px);
-  font-weight: 700;
-  color: rgba(74, 222, 128, 0.7);
-  margin-top: 8px;
-}
-
-/* ===== Section 9 — Phase Transitions ===== */
-.is-flying .panel-system {
-  opacity: 0;
-  transform: translateY(-120%);
-}
-
-.is-flying .panel-magi {
-  opacity: 0;
-  transform: translateY(-120%);
-}
-
-.is-flying .panel-metrics {
-  opacity: 0;
-  transform: translateX(-120%);
-}
-
-.is-flying .panel-liquidity {
-  opacity: 0;
-  transform: translateX(-120%);
-}
-
-.is-flying .panel-transactions {
-  opacity: 0;
-  transform: translateX(120%);
-}
-
-.is-flying .panel-detail {
-  opacity: 0;
-  transform: translateY(130%);
-}
-
-.is-flying .panel-coords {
-  opacity: 0;
-  transform: translateY(130%);
-}
-
-/* ===== Section 10 — Globe Overlay Elements ===== */
+/* ===== Section 7 — Globe Overlay Elements ===== */
 .live-badge {
   position: absolute;
   top: 18px;
@@ -712,15 +458,11 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   display: none;
 }
 
-/* ===== Section 11 — Keyframe Animations ===== */
+/* ===== Section 8 — Keyframe Animations ===== */
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-@keyframes engageSweep { from { left: -100%; } to { left: 100%; } }
-@keyframes warnBlink { 0%, 70% { opacity: 1; } 71%, 100% { opacity: 0.3; } }
-@keyframes nervFlicker { 0% { opacity: 0.7; } 100% { opacity: 1; } }
-@keyframes flightPanelIn { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes sparklineShift { from { background-position: 0 0, 0 0; } to { background-position: -180% 0, 0 0; } }
 
-/* ===== Section 12 — Arc Overlay ===== */
+/* ===== Section 9 — Arc Overlay ===== */
 .arc-overlay {
   position: absolute;
   inset: 0;
@@ -730,7 +472,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   z-index: 2;
 }
 
-/* ===== Section 13 — Globe Settings ===== */
+/* ===== Section 10 — Globe Settings ===== */
 .globe-settings {
   position: absolute;
   bottom: 46px;
@@ -764,7 +506,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   width: 240px;
   max-height: min(70vh, 680px);
   overflow-y: auto;
-  padding: 14px;
+  padding: 18px 14px 14px 18px;
   border: 1px solid var(--panel-border);
   background: var(--panel-bg);
   backdrop-filter: blur(16px);
@@ -858,7 +600,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   cursor: pointer;
 }
 
-/* ===== Section 14 — Responsive Breakpoints ===== */
+/* ===== Section 11 — Responsive Breakpoints ===== */
 @media (max-width: 1120px) {
   .panel-transactions { top: auto; bottom: 70px; right: 16px; max-height: 40vh; overflow-y: auto; }
   .panel-metrics { width: 130px; }
@@ -870,6 +612,5 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   .panel-magi { display: none; }
   .panel-transactions { left: 16px; right: 16px; width: auto; bottom: 70px; max-height: 35vh; }
   .panel-detail { width: calc(100% - 32px); flex-wrap: wrap; }
-  .nerv-sender, .nerv-receiver { width: calc(100% - 32px); left: 16px; right: auto; }
-  .nerv-receiver { top: auto; bottom: 80px; }
 }
+
