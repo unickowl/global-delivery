@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react"
+import type { CSSProperties } from "react"
 import {
   ArrowRight,
   RotateCw,
@@ -66,7 +67,7 @@ function ReplayButton() {
   )
 }
 
-const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
+export const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
   arcHeight: 0.2,
   rotateSpeed: 0.003,
   arcBrightness: 0.5,
@@ -87,6 +88,35 @@ const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
   largeFlightSpeed: 1,
   surfaceBrightness: 1.75,
   landBrightness: 1.65,
+  grainEnabled: true,
+  grainOpacity: 0.17,
+  grainScale: 1.10,
+  grainSpeed: 0.20,
+  grainGlitch: true,
+  grainGlitchStrength: 0.05,
+}
+
+function buildGrainUrl(scale: number) {
+  const baseFreq = scale.toFixed(2)
+  // SVG is rendered at 100×100; CSS stretches it to 200×200 (background-size).
+  // The 2× upscale doubles each speckle's on-screen size so changes to
+  // baseFrequency are actually visible across the slider's range.
+  // numOctaves=1 keeps each speckle clean instead of layering finer detail
+  // on top, which would read as "smooth mist" rather than visible grain.
+  return `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='${baseFreq}' numOctaves='1' stitchTiles='stitch'/><feColorMatrix values='0.6 0.6 0.6 0 0  0.6 0.6 0.6 0 0  0.6 0.6 0.6 0 0  0 0 0 1 0'/></filter><rect width='100' height='100' filter='url(%23n)'/></svg>")`
+}
+
+function grainCssVars(settings: GlobeSettingsState): CSSProperties {
+  const speed = Math.max(settings.grainSpeed, 0.0001)
+  const glitchOn = settings.grainEnabled && settings.grainGlitch
+  return {
+    ["--fp-grain-image" as string]: buildGrainUrl(settings.grainScale),
+    ["--fp-grain-opacity" as string]: settings.grainEnabled ? settings.grainOpacity : 0,
+    ["--fp-grain-duration" as string]: `${Math.round(1200 / speed)}ms`,
+    ["--fp-grain-play" as string]: settings.grainSpeed <= 0 ? "paused" : "running",
+    ["--fp-glitch-strength" as string]: glitchOn ? settings.grainGlitchStrength : 0,
+    ["--fp-glitch-play" as string]: glitchOn ? "running" : "paused",
+  }
 }
 
 export function App() {
@@ -110,7 +140,7 @@ export function App() {
 
   return (
     <FuturisticPanelProvider>
-      <main className="app-shell">
+      <main className="app-shell" style={grainCssVars(globeSettings)}>
         {/* Globe fills entire viewport */}
         <div className="globe-stage">
           <ThreeGlobeCanvas
@@ -134,7 +164,7 @@ export function App() {
         </div>
 
         {/* HUD: Top-left system status */}
-        <FuturisticPanel className="hud-panel panel-system" revealDelay={0}>
+        <FuturisticPanel className="hud-panel panel-system" revealDelay={0} label="FS-00 // CORE">
           <div className="live-dot" />
           <div className="system-text">
             <strong>FLOWSPHERE</strong> · Global rails online · {live.railUptime.toFixed(2)}%
@@ -143,7 +173,7 @@ export function App() {
         </FuturisticPanel>
 
         {/* HUD: Top-right MAGI nodes */}
-        <FuturisticPanel className="hud-panel panel-magi" revealDelay={120}>
+        <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01 // MAGI">
           {["CASPER", "MELCHIOR", "BALTHASAR"].map((name) => (
             <div className="magi-node" key={name}>
               <span className="magi-name">{name}</span>
@@ -153,7 +183,7 @@ export function App() {
         </FuturisticPanel>
 
         {/* HUD: Left metrics */}
-        <FuturisticPanel className="hud-panel panel-metrics" revealDelay={200}>
+        <FuturisticPanel className="hud-panel panel-metrics" revealDelay={200} label="FS-02 // LOAD">
           <div className="hud-label">Network Load</div>
           <div className="metric-item">
             <div className="metric-val">{formatCompactMoney(live.volume24h)}</div>
@@ -164,7 +194,7 @@ export function App() {
         </FuturisticPanel>
 
         {/* HUD: Left-bottom liquidity */}
-        <FuturisticPanel className="hud-panel panel-liquidity" revealDelay={280}>
+        <FuturisticPanel className="hud-panel panel-liquidity" revealDelay={280} label="FS-03 // LIQ">
           <div className="hud-label">Liquidity Pools</div>
           {live.pools.map((pool) => (
             <div className="pool-item" key={pool.name}>
@@ -180,7 +210,7 @@ export function App() {
         </FuturisticPanel>
 
         {/* HUD: Right transaction queue */}
-        <FuturisticPanel className="hud-panel panel-transactions" revealDelay={360}>
+        <FuturisticPanel className="hud-panel panel-transactions" revealDelay={360} label="FS-04 // QUEUE">
           <div className="hud-label">Transaction Queue</div>
           {live.transactions.slice(0, 9).map((tx, i) => (
             <TransactionRow
@@ -194,7 +224,12 @@ export function App() {
         </FuturisticPanel>
 
         {/* HUD: Bottom detail bar */}
-        <FuturisticPanel className="hud-panel panel-detail" revealDelay={450}>
+        <FuturisticPanel
+          className="hud-panel panel-detail"
+          revealDelay={450}
+          label="FS-05 // TRACK"
+          scanning
+        >
           <div className="detail-route">
             <div className="detail-from-to">
               <span>{selected.source.city}</span>
@@ -228,7 +263,12 @@ export function App() {
         </FuturisticPanel>
 
         {/* HUD: Bottom-left coords */}
-        <FuturisticPanel className="hud-panel panel-coords" revealDelay={520} cornerSize={4}>
+        <FuturisticPanel
+          className="hud-panel panel-coords"
+          revealDelay={520}
+          cornerSize={4}
+          label="FS-06"
+        >
           PHI {phiRef.current.toFixed(3)} · θ {thetaRef.current.toFixed(3)} · {selected.source.city.toUpperCase().slice(0, 3)} → {selected.target.city.toUpperCase().slice(0, 3)}
         </FuturisticPanel>
 

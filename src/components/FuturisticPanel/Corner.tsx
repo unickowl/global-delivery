@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import { animate, utils } from "animejs"
-import type { PanelState } from "./types"
+import type { CornerKey, PanelState } from "./types"
 
 interface Props {
   width: number
@@ -10,9 +10,37 @@ interface Props {
   selectedColor: string
   size: number
   delay?: number
+  corners?: CornerKey[]
 }
 
-export function Corner({ width, height, state, color, selectedColor, size, delay = 0 }: Props) {
+function pathFor(key: CornerKey, w: number, h: number, size: number) {
+  switch (key) {
+    case "lt": return `M0 0 H${size} L0 ${size}V0 Z`
+    case "rt": return `M${w} 0 L${w} ${size} L${w - size} 0 Z`
+    case "rb": return `M${w} ${h} L${w - size} ${h} L${w} ${h - size} Z`
+    case "lb": return `M0 ${h} L0 ${h - size} L${size} ${h} Z`
+  }
+}
+
+function centerFor(key: CornerKey, w: number, h: number, size: number): [number, number] {
+  switch (key) {
+    case "lt": return [size / 2, size / 2]
+    case "rt": return [w - size / 2, size / 2]
+    case "rb": return [w - size / 2, h - size / 2]
+    case "lb": return [size / 2, h - size / 2]
+  }
+}
+
+export function Corner({
+  width,
+  height,
+  state,
+  color,
+  selectedColor,
+  size,
+  delay = 0,
+  corners = ["lt", "rt", "rb", "lb"],
+}: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null)
   const attrRef = useRef({
     off: size,
@@ -20,16 +48,12 @@ export function Corner({ width, height, state, color, selectedColor, size, delay
     fill: color,
   })
 
-  // Force a re-render on each frame by bumping a tiny state — but we use refs
-  // and set attributes imperatively, so no React state is needed. Render uses
-  // the *initial* attrRef values; animations then mutate the DOM directly.
-
   useEffect(() => {
     const svg = svgRef.current
     if (!svg || width === 0 || height === 0) return
 
     const paths = svg.querySelectorAll<SVGPathElement>("path[data-corner]")
-    if (paths.length !== 4) return
+    if (paths.length === 0) return
 
     utils.remove(svg)
     utils.remove(attrRef.current)
@@ -51,9 +75,6 @@ export function Corner({ width, height, state, color, selectedColor, size, delay
     const ease = state === "selected" ? "inOutCirc" : state === "hidden" ? "inExpo" : "outExpo"
     const duration = state === "visible" || state === "hidden" ? 400 : 300
 
-    // Anime.js v4 trips on object targets when the param key collides with a
-    // real CSS property (e.g. `color`, `rotate`, `offset`). We use short,
-    // non-CSS keys (`off`, `rot`, `fill`) and snap `fill` outside the tween.
     attrRef.current.fill = targetFill
 
     animate(attrRef.current, {
@@ -71,25 +92,14 @@ export function Corner({ width, height, state, color, selectedColor, size, delay
 
         const w = width + off * 2
         const h = height + off * 2
-        const cornerCenters: Array<[number, number]> = [
-          [size / 2, size / 2],
-          [w - size / 2, size / 2],
-          [w - size / 2, h - size / 2],
-          [size / 2, h - size / 2],
-        ]
 
-        const dList = [
-          `M0 0 H${size} L0 ${size}V0 Z`,
-          `M${w} 0 L${w} ${size} L${w - size} 0 Z`,
-          `M${w} ${h} L${w - size} ${h} L${w} ${h - size} Z`,
-          `M0 ${h} L0 ${h - size} L${size} ${h} Z`,
-        ]
-
-        paths.forEach((path, i) => {
-          const [cx, cy] = cornerCenters[i]
+        paths.forEach((path) => {
+          const key = path.dataset.corner as CornerKey
+          if (!key) return
+          const [cx, cy] = centerFor(key, w, h, size)
           path.setAttribute("transform", `rotate(${rot} ${cx} ${cy})`)
           path.setAttribute("fill", fill)
-          path.setAttribute("d", dList[i])
+          path.setAttribute("d", pathFor(key, w, h, size))
         })
 
         svg.setAttribute("viewBox", `0 0 ${w} ${h}`)
@@ -104,9 +114,6 @@ export function Corner({ width, height, state, color, selectedColor, size, delay
     })
   }, [state, width, height, color, selectedColor, size, delay])
 
-  // Render: SVG with 4 filled triangle paths at each corner. Initial layout
-  // uses size as the offset, matching attrRef defaults. Animation effect
-  // overrides positions imperatively after mount.
   const w = width + size * 2
   const h = height + size * 2
 
@@ -125,10 +132,14 @@ export function Corner({ width, height, state, color, selectedColor, size, delay
       fill="none"
       aria-hidden
     >
-      <path data-corner="lt" d={`M0 0 H${size} L0 ${size}V0 Z`} fill={color} />
-      <path data-corner="rt" d={`M${w} 0 L${w} ${size} L${w - size} 0 Z`} fill={color} />
-      <path data-corner="rb" d={`M${w} ${h} L${w - size} ${h} L${w} ${h - size} Z`} fill={color} />
-      <path data-corner="lb" d={`M0 ${h} L0 ${h - size} L${size} ${h} Z`} fill={color} />
+      {corners.map((key) => (
+        <path
+          key={key}
+          data-corner={key}
+          d={pathFor(key, w, h, size)}
+          fill={color}
+        />
+      ))}
     </svg>
   )
 }

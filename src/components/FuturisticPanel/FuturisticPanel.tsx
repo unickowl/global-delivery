@@ -5,7 +5,7 @@ import { Border } from "./Border"
 import { Corner } from "./Corner"
 import { useBoot } from "./context"
 import { useElementSize, useHover } from "./hooks"
-import type { PanelState } from "./types"
+import type { CornerKey, PanelState } from "./types"
 
 export interface FuturisticPanelProps extends Omit<HTMLAttributes<HTMLDivElement>, "color"> {
   selected?: boolean
@@ -19,8 +19,15 @@ export interface FuturisticPanelProps extends Omit<HTMLAttributes<HTMLDivElement
   cornerSize?: number
   /** Disable corner brackets entirely. */
   disableCorner?: boolean
-  /** Disable border lines entirely. */
+  /** Disable border lines entirely. Defaults to true — the panel relies on
+   *  a chamfered clip-path shape rather than drawn perimeter lines. */
   disableBorder?: boolean
+  /** Which corners to render as filled triangles. */
+  corners?: CornerKey[]
+  /** Stenciled station ID rendered near the top-left corner (e.g. "FS-01"). */
+  label?: string
+  /** Show a vertical scan beam that loops while the panel is visible. */
+  scanning?: boolean
   children: ReactNode
 }
 
@@ -50,7 +57,10 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     strokeWidth = 1,
     cornerSize = 10,
     disableCorner = false,
-    disableBorder = false,
+    disableBorder = true,
+    corners = ["lt", "rb"],
+    label,
+    scanning = false,
     className,
     children,
     style,
@@ -93,10 +103,13 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   useEffect(() => {
     const el = sizeRef.current
     if (!el) return
-    // Exclude nested .futuristic-panel children — they run their own flicker.
+    // Exclude nested .futuristic-panel children (they run their own flicker)
+    // and the scan beam (it has its own CSS-driven loop).
     const targets = Array.from(el.children).filter(
       (c): c is HTMLElement =>
-        c instanceof HTMLElement && !c.classList.contains("futuristic-panel"),
+        c instanceof HTMLElement &&
+        !c.classList.contains("futuristic-panel") &&
+        !c.classList.contains("fp-scan-beam"),
     )
     if (targets.length === 0) return
 
@@ -173,8 +186,11 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
           selectedColor={selectedColor}
           size={cornerSize}
           delay={layerDelay}
+          corners={corners}
         />
       )}
+      {label && <span className="fp-label" aria-hidden>{label}</span>}
+      {scanning && state !== "hidden" && <span className="fp-scan-beam" aria-hidden />}
       {children}
     </div>
   )
