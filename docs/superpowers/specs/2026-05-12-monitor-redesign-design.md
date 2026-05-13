@@ -1,8 +1,8 @@
-# FlowSphere Monitor Redesign — Design Spec
+# OwlPay Monitor Redesign — Design Spec
 
 ## Overview
 
-Redesign the FlowSphere stablecoin flow dashboard from a three-column panel layout into a full-screen HUD (heads-up display) monitor with the 3D globe as the dominant visual. The design has two distinct visual modes: **MAGI Monitor** (calm, data-rich surveillance) and **NERV Alert** (high-tension flight tracking). Inspired by modern cyberpunk aesthetics and Neon Genesis Evangelion's command center interfaces.
+Redesign the OwlPay stablecoin flow dashboard from a three-column panel layout into a full-screen HUD (heads-up display) monitor with the 3D globe as the dominant visual. The design has two distinct visual modes: **MAGI Monitor** (calm, data-rich surveillance) and **NERV Alert** (high-tension flight tracking). Inspired by modern cyberpunk aesthetics and Neon Genesis Evangelion's command center interfaces.
 
 ## Visual Identity
 
@@ -50,7 +50,7 @@ The entire viewport is the globe canvas. All UI elements are absolutely-position
 ```
 
 **Panel positions:**
-- **Top-left**: System status — brand mark, "FLOWSPHERE", live indicator dot, "GLOBAL RAILS ONLINE"
+- **Top-left**: System status — brand mark, "OWLPAY", live indicator dot, "GLOBAL RAILS ONLINE"
 - **Top-right**: MAGI nodes — three sub-boxes labeled CASPER / MELCHIOR / BALTHASAR with OK/WARN status
 - **Left column** (stacked): Network Load panel (volume, % change, settlement time, active flows) + Liquidity Pools panel (4 pool bars)
 - **Right column**: Transaction Queue — scrollable list of 5 transactions, each showing ID, status badge, route, amount

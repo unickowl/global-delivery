@@ -108,7 +108,7 @@ export function GlobeSettings({ settings, onChange }: GlobeSettingsProps) {
       {open && (
         <div className="settings-panel">
           <div className="settings-header">
-            <span className="settings-title">FLOWSPHERE TUNING</span>
+            <span className="settings-title">OWLPAY TUNING</span>
             <button className="settings-reset" onClick={reset} title="Reset to defaults" type="button">
               <RotateCcw size={11} />
               <span>Reset</span>

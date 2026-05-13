@@ -15,6 +15,7 @@ type ThreeGlobeCanvasProps = {
   transactions: Transaction[]
   selected: Transaction
   mode: GlobeMode
+  routesReady: boolean
   flightStartedAt: number | null
   onFlightDone: () => void
   globeSettings: GlobeSettingsState
@@ -538,13 +539,33 @@ function failedSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState, 
     if (flow.status !== "failed") continue
     const fade = flow.phase === "fading" ? 1 - clamp((now - flow.phaseStartedAt) / FADING_MS, 0, 1) : flow.fadeAlpha
     if (fade <= 0.03) continue
-    for (let i = 0; i < flow.arcPoints.length - 1; i += 1) {
+    const drawLimit = flow.phase === "drawing" ? easeInOutQuad(clamp((now - flow.phaseStartedAt) / settings.drawDuration, 0, 1)) : 1
+    const visiblePoints = Math.max(2, Math.floor(flow.arcPoints.length * drawLimit))
+    for (let i = 0; i < visiblePoints - 1; i += 1) {
       const a = flow.arcPoints[i]
       const b = flow.arcPoints[i + 1]
       positions.push(a[0], a[1], a[2], b[0], b[1], b[2])
     }
   }
   return new Float32Array(positions)
+}
+
+function seedInitialTransactionFlows(now: number, transactions: Transaction[], settings: GlobeSettingsState) {
+  let largeCount = 0
+  return transactions.slice(0, Math.min(MAX_FLOWS, settings.flowCount)).map((transaction, index) => {
+    const flow = createTransactionFlow(now, transaction, settings, largeCount)
+    if (flow.isLarge) largeCount += 1
+    const stagger = index * 18 + (hashText(transaction.id) % 260)
+    flow.startedAt = now + stagger
+    flow.phaseStartedAt = now + stagger
+    flow.drawProgress = flow.phase === "drawing" ? 0 : flow.drawProgress
+    if (flow.status === "failed") {
+      flow.phase = "drawing"
+      flow.drawProgress = 0
+    }
+    flow.breathAlpha = 0.25 + (hashText(`${transaction.id}-breath`) % 75) / 100
+    return flow
+  })
 }
 
 function selectedRouteSegments(selected: Transaction, settings: GlobeSettingsState, now: number, trailBoost = 0, fullRoute = false) {
@@ -739,6 +760,7 @@ export function ThreeGlobeCanvas({
   transactions,
   selected,
   mode,
+  routesReady,
   flightStartedAt,
   onFlightDone,
   globeSettings,
@@ -748,17 +770,18 @@ export function ThreeGlobeCanvas({
   const hostRef = useRef<HTMLDivElement>(null)
   const flightCanvasRef = useRef<HTMLCanvasElement>(null)
   const doneRef = useRef(false)
-  const latestRef = useRef({ transactions, selected, mode, flightStartedAt, onFlightDone, globeSettings })
+  const latestRef = useRef({ transactions, selected, mode, routesReady, flightStartedAt, onFlightDone, globeSettings })
   const dragRef = useRef({ active: false, startX: 0, startY: 0, startPhi: 0, startTheta: 0, velocity: 0, lastX: 0, lastT: 0 })
   const flowsRef = useRef<FlowTx[]>([])
+  const routesSeededRef = useRef(false)
   const lastAddRef = useRef(0)
   const focusMotionRef = useRef({ glow: 1, trail: 0, worldDim: 1 })
   const landPoints = useMemo(() => createLandPoints(), [])
 
   useEffect(() => {
-    latestRef.current = { transactions, selected, mode, flightStartedAt, onFlightDone, globeSettings }
+    latestRef.current = { transactions, selected, mode, routesReady, flightStartedAt, onFlightDone, globeSettings }
     if (mode === "flight") doneRef.current = false
-  }, [flightStartedAt, globeSettings, mode, onFlightDone, selected, transactions])
+  }, [flightStartedAt, globeSettings, mode, onFlightDone, routesReady, selected, transactions])
 
   useEffect(() => {
     const motion = focusMotionRef.current
@@ -772,21 +795,6 @@ export function ThreeGlobeCanvas({
 
     return () => animation.cancel()
   }, [mode, selected.id])
-
-  useEffect(() => {
-    const settings = latestRef.current.globeSettings
-    const now = performance.now()
-    let largeCount = 0
-    flowsRef.current = latestRef.current.transactions.slice(0, Math.min(MAX_FLOWS, settings.flowCount)).map((transaction, index) => {
-      const flow = createTransactionFlow(now - index * 67, transaction, settings, largeCount)
-      if (flow.isLarge) largeCount += 1
-      flow.phase = "breathing"
-      flow.drawProgress = 1
-      flow.breathAlpha = 0.25 + Math.random() * 0.75
-      return flow
-    })
-    lastAddRef.current = now
-  }, [])
 
   useEffect(() => {
     const host = hostRef.current
@@ -1015,7 +1023,22 @@ export function ThreeGlobeCanvas({
 
       globeGroup.rotation.set(-thetaRef.current, phiRef.current, 0, "YXZ")
 
-      updateFlows(now, flowsRef.current, current.transactions, current.globeSettings, lastAddRef)
+      if (current.routesReady) {
+        if (!routesSeededRef.current) {
+          for (const flow of flowsRef.current) cancelFlowAnimations(flow)
+          flowsRef.current = seedInitialTransactionFlows(now, current.transactions, current.globeSettings)
+          routesSeededRef.current = true
+          lastAddRef.current = now
+          lastGeometryUpdate = 0
+        }
+        updateFlows(now, flowsRef.current, current.transactions, current.globeSettings, lastAddRef)
+      } else if (flowsRef.current.length > 0) {
+        for (const flow of flowsRef.current) cancelFlowAnimations(flow)
+        flowsRef.current = []
+        routesSeededRef.current = false
+      } else {
+        routesSeededRef.current = false
+      }
       if (Math.abs(current.globeSettings.arcHeight - lastArcHeight) > 0.001) {
         for (const flow of flowsRef.current) {
           flow.arcPoints = createArcPoints(flow.from.vec, flow.to.vec, current.globeSettings.arcHeight * flow.arcHeight, ARC_SEGMENTS)

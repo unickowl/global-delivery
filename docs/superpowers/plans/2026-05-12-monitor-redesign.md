@@ -1,8 +1,8 @@
-# FlowSphere Monitor Redesign — Implementation Plan
+# OwlPay Monitor Redesign — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Redesign the FlowSphere dashboard from a three-column layout into a full-screen HUD monitor with dual visual modes (MAGI Monitor / NERV Alert).
+**Goal:** Redesign the OwlPay dashboard from a three-column layout into a full-screen HUD monitor with dual visual modes (MAGI Monitor / NERV Alert).
 
 **Architecture:** The globe canvas fills the viewport. All UI elements are absolutely-positioned HUD panels with semi-transparent backgrounds. The app has four interaction phases: monitor → focus → flight → success. CSS handles the MAGI↔NERV color transitions. Canvas 2D renders the flight tunnel animation.
 
@@ -479,7 +479,7 @@ export function App() {
       <div className="hud-panel panel-system">
         <div className="live-dot" />
         <div className="system-text">
-          <strong>FLOWSPHERE</strong> · Global rails online · {live.railUptime.toFixed(2)}%
+          <strong>OWLPAY</strong> · Global rails online · {live.railUptime.toFixed(2)}%
         </div>
       </div>
 

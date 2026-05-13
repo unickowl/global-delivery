@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { CSSProperties } from "react"
 import { animate, utils } from "animejs"
 import {
@@ -17,6 +17,66 @@ import { cn, formatCompactMoney, formatEta, formatMoney } from "./lib/utils"
 type Mode = "monitor" | "focus"
 
 export const FLIGHT_DURATION = 6400
+
+const STARTUP_STEPS = [
+  "CONNECTING TO GLOBAL RAILS",
+  "AUTHORIZING MONITOR SESSION",
+  "LOADING TRANSACTION SNAPSHOT",
+  "SYNCING LIQUIDITY POOLS",
+  "HYDRATING GLOBE MODEL",
+  "OPENING LIVE STREAM",
+  "MONITOR ONLINE",
+]
+
+function StartupLoading({ onComplete }: { onComplete: () => void }) {
+  const [stepIndex, setStepIndex] = useState(0)
+  const [exiting, setExiting] = useState(false)
+
+  useEffect(() => {
+    if (stepIndex < STARTUP_STEPS.length - 1) {
+      const id = window.setTimeout(() => setStepIndex((index) => index + 1), 430)
+      return () => window.clearTimeout(id)
+    }
+
+    const exitId = window.setTimeout(() => {
+      setExiting(true)
+      window.setTimeout(onComplete, 520)
+    }, 620)
+    return () => window.clearTimeout(exitId)
+  }, [onComplete, stepIndex])
+
+  const progress = ((stepIndex + 1) / STARTUP_STEPS.length) * 100
+
+  return (
+    <main className={cn("startup-shell", exiting && "is-exiting")}>
+      <div className="startup-grid" />
+      <div className="startup-radar" aria-hidden>
+        <span className="startup-radar-ring ring-a" />
+        <span className="startup-radar-ring ring-b" />
+        <span className="startup-radar-ring ring-c" />
+        <span className="startup-radar-sweep" />
+      </div>
+      <section className="startup-core" aria-label="OwlPay monitor startup">
+        <div className="startup-kicker">GLOBAL RAIL MONITOR</div>
+        <h1 className="startup-title">OWLPAY</h1>
+        <div className="startup-subtitle">ACQUIRING STABLECOIN FLOW SIGNAL</div>
+        <div className="startup-progress-track">
+          <div className="startup-progress-fill" style={{ width: `${progress}%` }} />
+          <span className="startup-progress-scan" />
+        </div>
+        <div className="startup-steps">
+          {STARTUP_STEPS.map((step, index) => (
+            <div className={cn("startup-step", index < stepIndex && "done", index === stepIndex && "active")} key={step}>
+              <span className="startup-step-index">{String(index + 1).padStart(2, "0")}</span>
+              <span className="startup-step-text">{step}</span>
+              <span className="startup-step-state">{index < stepIndex ? "OK" : index === stepIndex ? "SYNC" : "WAIT"}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+  )
+}
 
 function Metric({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
@@ -88,17 +148,26 @@ function ReplayButton() {
  * stutters out to a near-invisible dim. Lives inside FuturisticPanelProvider
  * so it can call useBoot.
  */
-function GlobeGlitch() {
+const GLOBE_ROUTE_BOOT_DELAY_MS = 1350
+
+function GlobeGlitch({ onRoutesReady }: { onRoutesReady: () => void }) {
   const { visible, epoch } = useBoot()
   const initialRef = useRef(true)
 
   useEffect(() => {
     const stage = document.querySelector<HTMLElement>(".globe-stage")
-    if (!stage) return
+    let readyTimer: number | null = null
+    if (!stage) {
+      readyTimer = window.setTimeout(onRoutesReady, GLOBE_ROUTE_BOOT_DELAY_MS)
+      return () => {
+        if (readyTimer !== null) window.clearTimeout(readyTimer)
+      }
+    }
 
     utils.remove(stage)
 
     if (visible) {
+      readyTimer = window.setTimeout(onRoutesReady, GLOBE_ROUTE_BOOT_DELAY_MS)
       // Glitch IN — opacity stutters from near-dark to full over ~1s. The
       // 12-keyframe array sampled at high frequency reads as glitch flicker.
       animate(stage, {
@@ -117,7 +186,10 @@ function GlobeGlitch() {
     }
 
     initialRef.current = false
-  }, [visible, epoch])
+    return () => {
+      if (readyTimer !== null) window.clearTimeout(readyTimer)
+    }
+  }, [onRoutesReady, visible, epoch])
 
   return null
 }
@@ -177,9 +249,10 @@ function grainCssVars(settings: GlobeSettingsState): CSSProperties {
   }
 }
 
-export function App() {
+function MonitorApp() {
   const [selectedId, setSelectedId] = useState(baseTransactions[0].id)
   const [mode, setMode] = useState<Mode>("monitor")
+  const [routesReady, setRoutesReady] = useState(false)
   const [globeSettings, setGlobeSettings] = useState<GlobeSettingsState>(DEFAULT_GLOBE_SETTINGS)
   const live = useLiveDashboard({
     maxTransactions: globeSettings.transactionBufferSize,
@@ -211,9 +284,13 @@ export function App() {
     setMode("monitor")
   }
 
+  const handleRoutesReady = useCallback(() => {
+    setRoutesReady(true)
+  }, [])
+
   return (
     <FuturisticPanelProvider>
-      <GlobeGlitch />
+      <GlobeGlitch onRoutesReady={handleRoutesReady} />
       <main className="app-shell" style={grainCssVars(globeSettings)}>
         {/* Globe fills entire viewport */}
         <div className="globe-stage">
@@ -221,6 +298,7 @@ export function App() {
             transactions={live.transactions}
             selected={selected}
             mode={mode}
+            routesReady={routesReady}
             flightStartedAt={null}
             onFlightDone={() => undefined}
             globeSettings={globeSettings}
@@ -241,7 +319,7 @@ export function App() {
         <FuturisticPanel className="hud-panel panel-system" revealDelay={0} label="FS-00 // CORE">
           <div className="live-dot" />
           <div className="system-text">
-            <strong>FLOWSPHERE</strong> · Global rails online · {live.railUptime.toFixed(2)}%
+            <strong>OWLPAY</strong> · Global rails online · {live.railUptime.toFixed(2)}%
           </div>
           <ReplayButton />
         </FuturisticPanel>
@@ -354,4 +432,13 @@ export function App() {
       </main>
     </FuturisticPanelProvider>
   )
+}
+
+export function App() {
+  const [startupComplete, setStartupComplete] = useState(false)
+  const completeStartup = useCallback(() => setStartupComplete(true), [])
+
+  if (!startupComplete) return <StartupLoading onComplete={completeStartup} />
+
+  return <MonitorApp />
 }
