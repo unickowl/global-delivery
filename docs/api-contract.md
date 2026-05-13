@@ -291,6 +291,46 @@ data: {"type":"transaction.created","transaction":{"id":"TX-000B-A71C","status":
 - `transaction.removed`: 從前端 buffer 移除。
 - 前端保持最多 300 筆，超過就移除最舊資料。
 
+## Transaction Lifecycle Update Handling
+
+交易失敗通常不是一開始就以 `failed` 建立，而是同一筆交易在建立後由後端通知狀態變化。
+
+Recommended lifecycle:
+
+```txt
+transaction.created  pending
+transaction.updated  routing
+transaction.updated  settled
+```
+
+Failure lifecycle:
+
+```txt
+transaction.created  pending
+transaction.updated  routing
+transaction.updated  failed
+```
+
+前端處理規則：
+
+- `transaction.created` 是新交易，插入 queue 最上方。
+- `transaction.updated` 是同一筆交易的狀態更新，不應新增一列，也不應重新排序到最上方，除非產品明確要求。
+- 若 `routing` 或 `pending` 更新為 `failed`，右側 queue 的同一列改成 failed 狀態。
+- 同一條地球 route 直接轉成紅色整線呼吸，不新增另一條紅線。
+- `failed` 不做流動光點、不做 trail animation。
+
+後端建議提供防止舊事件覆蓋新事件的欄位：
+
+```ts
+type TransactionVersionFields = {
+  createdAt: string
+  updatedAt: string
+  sequence: number
+}
+```
+
+若 `sequence` 不存在，前端至少應使用 `updatedAt` 判斷事件新舊。
+
 ### WebSocket
 
 ```txt
@@ -546,4 +586,3 @@ type TransactionFailure = {
 | `FS-04 // QUEUE` | `Transaction[]` | direction, id, status, source/target, chain, rail, amount |
 | `FS-05 // TRACK` | selected `Transaction` / `TransactionDetailResponse` | route, amounts, exchangeRate, fee, rail, riskScore |
 | Globe routes | `Transaction[]` | source/target coordinates, status, amount |
-

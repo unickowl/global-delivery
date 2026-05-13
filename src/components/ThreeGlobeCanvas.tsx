@@ -367,10 +367,32 @@ function updateFlows(now: number, flows: FlowTx[], transactions: Transaction[], 
   const targetCount = clamp(Math.round(settings.flowCount), 20, MAX_FLOWS)
   const activeTransactions = transactions.slice(0, targetCount)
   const activeIds = new Set(activeTransactions.map((tx) => tx.id))
+  const transactionById = new Map(activeTransactions.map((tx) => [tx.id, tx]))
 
   for (const flow of flows) {
     if (!activeIds.has(flow.id) && flow.phase !== "fading") {
       startFlowFade(flow, now)
+      continue
+    }
+
+    const transaction = transactionById.get(flow.id)
+    if (!transaction) continue
+
+    if (flow.status !== transaction.status) {
+      flow.status = transaction.status
+
+      if (transaction.status === "failed") {
+        cancelFlowAnimations(flow)
+        flow.isLarge = false
+        flow.phase = "breathing"
+        flow.phaseStartedAt = now
+        flow.drawProgress = 1
+        flow.fadeAlpha = 1
+        flow.sourcePulse = 0
+        flow.targetPulse = 0
+        flow.flightProgress = 0
+        flow.breathAlpha = 1
+      }
     }
   }
 

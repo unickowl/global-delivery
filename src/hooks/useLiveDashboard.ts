@@ -81,6 +81,10 @@ function statusFor(progress: number, seed: number): Transaction["status"] {
   return "settled"
 }
 
+function createdStatus(seed: number): Transaction["status"] {
+  return pseudoRandom(seed, 53) > 0.72 ? "routing" : "pending"
+}
+
 function transactionId(seed: number, index: number) {
   const value = Math.abs(Math.floor(Math.sin(seed * 12.9898 + index * 78.233) * 0xffffff))
   const sequence = seed.toString(36).toUpperCase().padStart(4, "0")
@@ -124,7 +128,7 @@ function withAmount(hub: MockHub, amount: number, currency = hub.currency, chain
   }
 }
 
-function createTransaction(seed: number, slotIndex: number): Transaction {
+function createTransaction(seed: number, slotIndex: number, statusOverride?: Transaction["status"]): Transaction {
   const t = seed * 0.73
   const sourceHub = pickHub(seed + slotIndex * 3, 3)
   const targetHub = pickCounterparty(seed + slotIndex * 5, sourceHub)
@@ -156,7 +160,7 @@ function createTransaction(seed: number, slotIndex: number): Transaction {
 
   return {
     id: transactionId(seed + hashText(sourceHub.city) + hashText(targetHub.city), slotIndex),
-    status: statusFor(progress, seed),
+    status: statusOverride ?? statusFor(progress, seed),
     direction,
     source,
     target,
@@ -181,7 +185,51 @@ function trimTransactions(transactions: Transaction[], maxTransactions: number) 
 }
 
 function appendLiveTransaction(transactions: Transaction[], seed: number, maxTransactions: number) {
-  return trimTransactions([createTransaction(seed, 0), ...transactions], maxTransactions)
+  return trimTransactions([createTransaction(seed, 0, createdStatus(seed)), ...transactions], maxTransactions)
+}
+
+function nextStatus(transaction: Transaction, seed: number): Transaction["status"] {
+  if (transaction.status === "settled" || transaction.status === "failed") return transaction.status
+  const roll = pseudoRandom(seed + hashText(transaction.id), 67)
+
+  if (transaction.status === "pending") {
+    if (roll < 0.04) return "failed"
+    if (roll < 0.86) return "routing"
+    return "pending"
+  }
+
+  if (roll < 0.025) return "failed"
+  if (roll < 0.68) return "settled"
+  return "routing"
+}
+
+function etaForStatus(status: Transaction["status"], seed: number, currentEta: string) {
+  if (status === "settled" || status === "failed") return "00:00"
+  if (status === "routing") return formatEta(20 + pseudoRandom(seed, 71) * 160)
+  return currentEta
+}
+
+function applyLifecycleUpdate(transactions: Transaction[], seed: number) {
+  const candidates = transactions
+    .map((transaction, index) => ({ transaction, index }))
+    .filter(({ transaction }) => transaction.status === "pending" || transaction.status === "routing")
+
+  if (candidates.length === 0) return transactions
+
+  const candidate = candidates[Math.floor(pseudoRandom(seed, 73) * candidates.length) % candidates.length]
+  const status = nextStatus(candidate.transaction, seed)
+  if (status === candidate.transaction.status) return transactions
+
+  return transactions.map((transaction, index) => {
+    if (index !== candidate.index) return transaction
+
+    return {
+      ...transaction,
+      status,
+      eta: etaForStatus(status, seed, transaction.eta),
+      riskScore: status === "failed" ? Math.max(transaction.riskScore, 42) : transaction.riskScore,
+    }
+  })
 }
 
 function nextPools(t: number): PoolMetric[] {
@@ -229,6 +277,14 @@ export function useLiveDashboard({
     return () => window.clearInterval(interval)
   }, [normalizedMax, streamIntervalMs])
 
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      sequenceRef.current += 1
+      setTransactions((current) => applyLifecycleUpdate(current, sequenceRef.current))
+    }, Math.max(900, Math.round(streamIntervalMs * 0.85)))
+    return () => window.clearInterval(interval)
+  }, [streamIntervalMs])
+
   return useMemo(() => {
     const t = tick / 1000
     const totalVisible = transactions.reduce((sum, tx) => sum + Math.max(tx.source.amount, tx.target.amount), 0)
@@ -242,5 +298,5 @@ export function useLiveDashboard({
       railUptime: 99.84 + wave(t, 0.7, 0.2) * 0.08,
       activeFlows: transactions.filter((tx) => tx.status === "routing").length,
     }
-  }, [tick])
+  }, [tick, transactions])
 }
