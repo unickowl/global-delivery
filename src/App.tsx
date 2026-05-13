@@ -13,69 +13,57 @@ import { FuturisticPanel, FuturisticPanelProvider, useBoot } from "./components/
 import { transactions as baseTransactions, type Transaction } from "./data/transactions"
 import { useLiveDashboard } from "./hooks/useLiveDashboard"
 import { cn, formatCompactMoney, formatEta, formatMoney } from "./lib/utils"
-import { LoadingDemosPage } from "./components/LoadingDemos"
+import { usePersistentState } from "./lib/usePersistentState"
+import { TerminalBoot } from "./components/TerminalBoot"
 
 type Mode = "monitor" | "focus"
 
 export const FLIGHT_DURATION = 6400
 
-const STARTUP_STEPS = [
-  "CONNECTING TO GLOBAL RAILS",
-  "AUTHORIZING MONITOR SESSION",
-  "LOADING TRANSACTION SNAPSHOT",
-  "SYNCING LIQUIDITY POOLS",
-  "HYDRATING GLOBE MODEL",
-  "OPENING LIVE STREAM",
-  "MONITOR ONLINE",
-]
+export type BootSettingsState = {
+  minDurationMs: number
+  lineRevealMs: number
+  settleMs: number
+  exitMs: number
+  hexIntervalMs: number
+  stallThresholdMs: number
+  fillerLineMs: number
+  maxTimeoutMs: number
+  mockSlowApi: boolean
+}
 
-export function StartupLoading({ onComplete }: { onComplete: () => void }) {
-  const [stepIndex, setStepIndex] = useState(0)
-  const [exiting, setExiting] = useState(false)
+export const DEFAULT_BOOT_SETTINGS: BootSettingsState = {
+  minDurationMs: 5000,
+  lineRevealMs: 320,
+  settleMs: 620,
+  exitMs: 520,
+  hexIntervalMs: 230,
+  stallThresholdMs: 8000,
+  fillerLineMs: 600,
+  maxTimeoutMs: 30000,
+  mockSlowApi: false,
+}
 
-  useEffect(() => {
-    if (stepIndex < STARTUP_STEPS.length - 1) {
-      const id = window.setTimeout(() => setStepIndex((index) => index + 1), 430)
-      return () => window.clearTimeout(id)
-    }
-
-    const exitId = window.setTimeout(() => {
-      setExiting(true)
-      window.setTimeout(onComplete, 520)
-    }, 620)
-    return () => window.clearTimeout(exitId)
-  }, [onComplete, stepIndex])
-
-  const progress = ((stepIndex + 1) / STARTUP_STEPS.length) * 100
-
+export function StartupLoading({
+  onComplete,
+  settings,
+}: {
+  onComplete: () => void
+  settings: BootSettingsState
+}) {
   return (
-    <main className={cn("startup-shell", exiting && "is-exiting")}>
-      <div className="startup-grid" />
-      <div className="startup-radar" aria-hidden>
-        <span className="startup-radar-ring ring-a" />
-        <span className="startup-radar-ring ring-b" />
-        <span className="startup-radar-ring ring-c" />
-        <span className="startup-radar-sweep" />
-      </div>
-      <section className="startup-core" aria-label="OwlPay monitor startup">
-        <div className="startup-kicker">GLOBAL RAIL MONITOR</div>
-        <h1 className="startup-title">OWLPAY</h1>
-        <div className="startup-subtitle">ACQUIRING STABLECOIN FLOW SIGNAL</div>
-        <div className="startup-progress-track">
-          <div className="startup-progress-fill" style={{ width: `${progress}%` }} />
-          <span className="startup-progress-scan" />
-        </div>
-        <div className="startup-steps">
-          {STARTUP_STEPS.map((step, index) => (
-            <div className={cn("startup-step", index < stepIndex && "done", index === stepIndex && "active")} key={step}>
-              <span className="startup-step-index">{String(index + 1).padStart(2, "0")}</span>
-              <span className="startup-step-text">{step}</span>
-              <span className="startup-step-state">{index < stepIndex ? "OK" : index === stepIndex ? "SYNC" : "WAIT"}</span>
-            </div>
-          ))}
-        </div>
-      </section>
-    </main>
+    <TerminalBoot
+      onComplete={onComplete}
+      ready={!settings.mockSlowApi}
+      minDurationMs={settings.minDurationMs}
+      lineRevealMs={settings.lineRevealMs}
+      settleMs={settings.settleMs}
+      exitMs={settings.exitMs}
+      hexIntervalMs={settings.hexIntervalMs}
+      stallThresholdMs={settings.stallThresholdMs}
+      fillerLineMs={settings.fillerLineMs}
+      maxTimeoutMs={settings.maxTimeoutMs}
+    />
   )
 }
 
@@ -289,11 +277,10 @@ function grainCssVars(settings: GlobeSettingsState): CSSProperties {
   }
 }
 
-function MonitorApp() {
+function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
   const [selectedId, setSelectedId] = useState(baseTransactions[0].id)
   const [mode, setMode] = useState<Mode>("monitor")
   const [routesReady, setRoutesReady] = useState(false)
-  const [globeSettings, setGlobeSettings] = useState<GlobeSettingsState>(DEFAULT_GLOBE_SETTINGS)
   const live = useLiveDashboard({
     maxTransactions: globeSettings.transactionBufferSize,
     streamIntervalMs: globeSettings.streamIntervalMs,
@@ -468,9 +455,6 @@ function MonitorApp() {
           )}
         </FuturisticPanel>
 
-        {/* Globe Settings Panel */}
-        <GlobeSettings settings={globeSettings} onChange={setGlobeSettings} />
-
       </main>
     </FuturisticPanelProvider>
   )
@@ -478,15 +462,42 @@ function MonitorApp() {
 
 export function App() {
   const [startupComplete, setStartupComplete] = useState(false)
-  const completeStartup = useCallback(() => setStartupComplete(true), [])
+  const [everCompleted, setEverCompleted] = useState(false)
+  const [bootEpoch, setBootEpoch] = useState(0)
+  const [bootSettings, setBootSettings] = usePersistentState<BootSettingsState>(
+    "owlpay.bootSettings",
+    DEFAULT_BOOT_SETTINGS,
+  )
+  const [globeSettings, setGlobeSettings] = usePersistentState<GlobeSettingsState>(
+    "owlpay.globeSettings",
+    DEFAULT_GLOBE_SETTINGS,
+  )
 
-  const isDemo =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).has("demos")
+  const completeStartup = useCallback(() => {
+    setStartupComplete(true)
+    setEverCompleted(true)
+  }, [])
 
-  if (isDemo) return <LoadingDemosPage />
+  const replayBoot = useCallback(() => {
+    setBootEpoch((e) => e + 1)
+    setStartupComplete(false)
+  }, [])
 
-  if (!startupComplete) return <StartupLoading onComplete={completeStartup} />
-
-  return <MonitorApp />
+  return (
+    <>
+      {startupComplete && <MonitorApp globeSettings={globeSettings} />}
+      {!startupComplete && (
+        <StartupLoading key={bootEpoch} onComplete={completeStartup} settings={bootSettings} />
+      )}
+      {everCompleted && (
+        <GlobeSettings
+          settings={globeSettings}
+          onChange={setGlobeSettings}
+          bootSettings={bootSettings}
+          onBootSettingsChange={setBootSettings}
+          onReplayBoot={replayBoot}
+        />
+      )}
+    </>
+  )
 }

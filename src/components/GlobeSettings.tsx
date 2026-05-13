@@ -1,12 +1,15 @@
 import { useState } from "react"
-import { RotateCcw, Settings } from "lucide-react"
+import { Play, RotateCcw, Settings } from "lucide-react"
 import type { ReactNode } from "react"
 import type { GlobeSettingsState } from "./ArcOverlay"
-import { DEFAULT_GLOBE_SETTINGS } from "../App"
+import { DEFAULT_BOOT_SETTINGS, DEFAULT_GLOBE_SETTINGS, type BootSettingsState } from "../App"
 
 type GlobeSettingsProps = {
   settings: GlobeSettingsState
   onChange: (settings: GlobeSettingsState) => void
+  bootSettings: BootSettingsState
+  onBootSettingsChange: (settings: BootSettingsState) => void
+  onReplayBoot: () => void
 }
 
 function SettingSlider({
@@ -86,14 +89,30 @@ function Section({
   )
 }
 
-export function GlobeSettings({ settings, onChange }: GlobeSettingsProps) {
+export function GlobeSettings({
+  settings,
+  onChange,
+  bootSettings,
+  onBootSettingsChange,
+  onReplayBoot,
+}: GlobeSettingsProps) {
   const [open, setOpen] = useState(false)
 
   const update = (patch: Partial<GlobeSettingsState>) => {
     onChange({ ...settings, ...patch })
   }
 
-  const reset = () => onChange(DEFAULT_GLOBE_SETTINGS)
+  const updateBoot = (patch: Partial<BootSettingsState>) => {
+    onBootSettingsChange({ ...bootSettings, ...patch })
+  }
+
+  const reset = () => {
+    onChange(DEFAULT_GLOBE_SETTINGS)
+    onBootSettingsChange(DEFAULT_BOOT_SETTINGS)
+  }
+
+  const fmtMs = (v: number) =>
+    v >= 1000 ? `${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}s` : `${Math.round(v)}ms`
 
   return (
     <div className="globe-settings">
@@ -114,6 +133,100 @@ export function GlobeSettings({ settings, onChange }: GlobeSettingsProps) {
               <span>Reset</span>
             </button>
           </div>
+
+          <Section title="Loading Sequence">
+            <div className="settings-row settings-row-actions">
+              <button
+                className="settings-action"
+                onClick={onReplayBoot}
+                type="button"
+                title="Replay the boot sequence over the live HUD"
+              >
+                <Play size={11} />
+                <span>Replay Boot</span>
+              </button>
+              <label className="settings-action-toggle">
+                <input
+                  type="checkbox"
+                  checked={bootSettings.mockSlowApi}
+                  onChange={(e) => updateBoot({ mockSlowApi: e.target.checked })}
+                />
+                <span>Mock slow API</span>
+              </label>
+            </div>
+            <SettingSlider
+              label="Min Duration"
+              value={bootSettings.minDurationMs}
+              min={1000}
+              max={15000}
+              step={500}
+              format={fmtMs}
+              onChange={(v) => updateBoot({ minDurationMs: v })}
+            />
+            <SettingSlider
+              label="Line Reveal"
+              value={bootSettings.lineRevealMs}
+              min={100}
+              max={800}
+              step={20}
+              format={fmtMs}
+              onChange={(v) => updateBoot({ lineRevealMs: v })}
+            />
+            <SettingSlider
+              label="Settle Pause"
+              value={bootSettings.settleMs}
+              min={0}
+              max={2000}
+              step={50}
+              format={fmtMs}
+              onChange={(v) => updateBoot({ settleMs: v })}
+            />
+            <SettingSlider
+              label="Exit Duration"
+              value={bootSettings.exitMs}
+              min={100}
+              max={1500}
+              step={50}
+              format={fmtMs}
+              onChange={(v) => updateBoot({ exitMs: v })}
+            />
+            <SettingSlider
+              label="Hex Stream Rate"
+              value={bootSettings.hexIntervalMs}
+              min={80}
+              max={600}
+              step={10}
+              format={fmtMs}
+              onChange={(v) => updateBoot({ hexIntervalMs: v })}
+            />
+            <SettingSlider
+              label="Stall Threshold"
+              value={bootSettings.stallThresholdMs}
+              min={3000}
+              max={30000}
+              step={500}
+              format={fmtMs}
+              onChange={(v) => updateBoot({ stallThresholdMs: v })}
+            />
+            <SettingSlider
+              label="Filler Rate"
+              value={bootSettings.fillerLineMs}
+              min={200}
+              max={2000}
+              step={50}
+              format={fmtMs}
+              onChange={(v) => updateBoot({ fillerLineMs: v })}
+            />
+            <SettingSlider
+              label="Hard Timeout"
+              value={bootSettings.maxTimeoutMs}
+              min={0}
+              max={120000}
+              step={1000}
+              format={(v) => (v === 0 ? "off" : fmtMs(v))}
+              onChange={(v) => updateBoot({ maxTimeoutMs: v })}
+            />
+          </Section>
 
           <Section title="Globe" defaultOpen>
             <SettingSlider label="Arc Height" value={settings.arcHeight} min={0.2} max={2.0} step={0.05} onChange={(v) => update({ arcHeight: v })} />
