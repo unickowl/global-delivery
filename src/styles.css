@@ -58,6 +58,10 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 .globe-stage {
   position: absolute;
   inset: 0;
+  /* Initial near-dark state. GlobeGlitch in App.tsx animates opacity back
+     to 1 on mount and during replay. */
+  opacity: 0.05;
+  will-change: opacity;
 }
 
 .globe-canvas {
@@ -118,29 +122,17 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 /* ===== Section 4b — Futuristic Panel SVG layers ===== */
 .futuristic-panel {
   isolation: isolate;
-  --fp-chamfer: 14px;
-  --fp-corner-overflow: 10px;
-  /* Chamfer the top-right and bottom-left corners. TL and BR stay square but
-     the polygon is extended slightly past them so the corner triangle SVGs
-     (which sit a few pixels outward in normal/hover state) aren't cropped. */
+  opacity: 0;
+  /* Initial closed shape: a small square at the panel's center, formed by the
+     TL + BR triangles together. JS replaces this inline with the animated
+     clip-path on the visible-state transition. The chamfer / overflow vars
+     are still consumed by the JS animation for the fully-open shape. */
   clip-path: polygon(
-    calc(-1 * var(--fp-corner-overflow)) calc(-1 * var(--fp-corner-overflow)),
-    calc(100% - var(--fp-chamfer)) 0,
-    100% var(--fp-chamfer),
-    calc(100% + var(--fp-corner-overflow)) calc(100% + var(--fp-corner-overflow)),
-    var(--fp-chamfer) 100%,
-    0 calc(100% - var(--fp-chamfer))
+    calc(50% - 6px) calc(50% - 6px),
+    calc(50% + 6px) calc(50% - 6px),
+    calc(50% + 6px) calc(50% + 6px),
+    calc(50% - 6px) calc(50% + 6px)
   );
-}
-
-.tx-item.futuristic-panel {
-  --fp-chamfer: 8px;
-  --fp-corner-overflow: 5px;
-}
-
-.panel-coords.futuristic-panel {
-  --fp-chamfer: 6px;
-  --fp-corner-overflow: 4px;
 }
 
 /* .hud-panel already provides position: absolute as the positioning context.

@@ -1,4 +1,5 @@
 import { type MutableRefObject, useEffect, useMemo, useRef } from "react"
+import { animate } from "animejs"
 import * as THREE from "three"
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js"
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js"
@@ -35,10 +36,16 @@ type FlowTx = {
   startedAt: number
   phaseStartedAt: number
   duration: number
+  usesAnime: boolean
+  drawProgress: number
+  fadeAlpha: number
+  sourcePulse: number
+  targetPulse: number
   flightProgress: number
   breathAlpha: number
   arcHeight: number
   arcPoints: Vec3[]
+  animations: Array<ReturnType<typeof animate>>
 }
 
 const MAX_FLOWS = 280
@@ -183,19 +190,135 @@ function createFlow(now: number, nodes: FlowNode[], settings: GlobeSettingsState
     startedAt: now - phaseAge,
     phaseStartedAt: now - phaseAge,
     duration,
+    usesAnime: false,
+    drawProgress: phase === "drawing" ? 0 : 1,
+    fadeAlpha: 1,
+    sourcePulse: 0,
+    targetPulse: 0,
     flightProgress: 0,
     breathAlpha: 0.4,
     arcHeight,
     arcPoints: createArcPoints(from.vec, to.vec, settings.arcHeight * arcHeight, ARC_SEGMENTS),
+    animations: [],
+  }
+}
+
+function cancelFlowAnimations(flow: FlowTx) {
+  for (const animation of flow.animations) animation.cancel()
+  flow.animations = []
+}
+
+function addFlowAnimation(flow: FlowTx, animation: ReturnType<typeof animate>) {
+  flow.animations.push(animation)
+  return animation
+}
+
+function startBreathingAnimation(flow: FlowTx) {
+  addFlowAnimation(
+    flow,
+    animate(flow, {
+      breathAlpha: [0.28, 1],
+      duration: 2400,
+      loop: true,
+      alternate: true,
+      ease: "inOutSine",
+    }),
+  )
+}
+
+function startFlowFade(flow: FlowTx, now: number) {
+  if (flow.phase === "fading") return
+  cancelFlowAnimations(flow)
+  flow.phase = "fading"
+  flow.phaseStartedAt = now
+  flow.fadeAlpha = clamp(flow.fadeAlpha, 0, 1)
+  addFlowAnimation(
+    flow,
+    animate(flow, {
+      fadeAlpha: 0,
+      duration: FADING_MS,
+      ease: "inOutCubic",
+    }),
+  )
+}
+
+function startFlowAnimation(flow: FlowTx, settings: GlobeSettingsState) {
+  if (flow.usesAnime) return
+  flow.usesAnime = true
+  cancelFlowAnimations(flow)
+
+  if (flow.isLarge) {
+    flow.phase = "arriving"
+    flow.sourcePulse = 0
+    flow.flightProgress = 0
+    flow.targetPulse = 0
+    addFlowAnimation(
+      flow,
+      animate(flow, {
+        sourcePulse: [0, 1],
+        duration: ARRIVING_MS,
+        ease: "outCubic",
+        onComplete: () => {
+          flow.phase = "flying"
+          flow.phaseStartedAt = performance.now()
+          addFlowAnimation(
+            flow,
+            animate(flow, {
+              flightProgress: [0, 1],
+              duration: FLYING_MS / clamp(settings.largeFlightSpeed ?? 1, 0.2, 4),
+              ease: "inOutQuad",
+              onComplete: () => {
+                flow.phase = "landing"
+                flow.phaseStartedAt = performance.now()
+                addFlowAnimation(
+                  flow,
+                  animate(flow, {
+                    targetPulse: [0, 1],
+                    duration: LANDING_MS,
+                    ease: "outCubic",
+                    onComplete: () => {
+                      flow.phase = "breathing"
+                      flow.phaseStartedAt = performance.now()
+                      startBreathingAnimation(flow)
+                    },
+                  }),
+                )
+              },
+            }),
+          )
+        },
+      }),
+    )
+    return
+  }
+
+  if (flow.phase === "drawing") {
+    flow.drawProgress = 0
+    addFlowAnimation(
+      flow,
+      animate(flow, {
+        drawProgress: [0, 1],
+        duration: settings.drawDuration,
+        ease: "inOutQuad",
+        onComplete: () => {
+          flow.phase = "breathing"
+          flow.phaseStartedAt = performance.now()
+          startBreathingAnimation(flow)
+        },
+      }),
+    )
+  } else if (flow.phase === "breathing") {
+    startBreathingAnimation(flow)
   }
 }
 
 function updateFlows(now: number, flows: FlowTx[], nodes: FlowNode[], settings: GlobeSettingsState, lastAddRef: MutableRefObject<number>) {
   for (const tx of flows) {
     if (now - tx.startedAt >= tx.duration && tx.phase !== "fading") {
-      tx.phase = "fading"
-      tx.phaseStartedAt = now
+      startFlowFade(tx, now)
     }
+
+    if (tx.usesAnime) continue
 
     const phaseAge = now - tx.phaseStartedAt
     if (tx.phase === "arriving" && phaseAge >= ARRIVING_MS) {
@@ -223,7 +346,10 @@ function updateFlows(now: number, flows: FlowTx[], nodes: FlowNode[], settings: 
   }
 
   for (let i = flows.length - 1; i >= 0; i -= 1) {
-    if (flows[i].phase === "fading" && now - flows[i].phaseStartedAt > FADING_MS) flows.splice(i, 1)
+    if (flows[i].phase === "fading" && (flows[i].fadeAlpha <= 0.03 || now - flows[i].phaseStartedAt > FADING_MS)) {
+      cancelFlowAnimations(flows[i])
+      flows.splice(i, 1)
+    }
   }
 
   const targetCount = clamp(Math.round(settings.flowCount), 20, MAX_FLOWS)
@@ -233,6 +359,7 @@ function updateFlows(now: number, flows: FlowTx[], nodes: FlowNode[], settings: 
     for (let i = 0; i < batch; i += 1) {
       const tx = createFlow(now, nodes, settings, largeCount)
       if (tx.isLarge) largeCount += 1
+      startFlowAnimation(tx, settings)
       flows.push(tx)
     }
     lastAddRef.current = now
@@ -282,12 +409,12 @@ function lineSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState, la
 
   for (const flow of active) {
     if (flow.isLarge !== largeOnly) continue
-    const fade = flow.phase === "fading" ? 1 - clamp((now - flow.phaseStartedAt) / FADING_MS, 0, 1) : 1
+    const fade = flow.usesAnime ? flow.fadeAlpha : flow.phase === "fading" ? 1 - clamp((now - flow.phaseStartedAt) / FADING_MS, 0, 1) : 1
     if (fade <= 0.03) continue
     if (flow.phase === "arriving" || flow.phase === "landing") continue
     let visiblePoints = flow.arcPoints.length
     if (flow.phase === "drawing") {
-      const head = easeInOutQuad(clamp((now - flow.phaseStartedAt) / settings.drawDuration, 0, 1))
+      const head = flow.usesAnime ? flow.drawProgress : easeInOutQuad(clamp((now - flow.phaseStartedAt) / settings.drawDuration, 0, 1))
       visiblePoints = Math.max(2, Math.floor(flow.arcPoints.length * head))
     }
     for (let i = 0; i < visiblePoints - 1; i += 1) {
@@ -300,24 +427,34 @@ function lineSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState, la
   return new Float32Array(positions)
 }
 
+function pushArcRange(positions: number[], points: Vec3[], from: number, to: number) {
+  const segmentCount = points.length - 1
+  const start = Math.floor(clamp(from, 0, 1) * segmentCount)
+  const end = Math.max(start + 1, Math.floor(clamp(to, 0, 1) * segmentCount))
+  for (let i = start; i < Math.min(end, segmentCount); i += 1) {
+    const a = points[i]
+    const b = points[i + 1]
+    positions.push(a[0], a[1], a[2], b[0], b[1], b[2])
+  }
+}
+
 function shimmerSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState, now: number) {
-  const positions: number[] = []
+  const tailPositions: number[] = []
+  const midPositions: number[] = []
+  const headPositions: number[] = []
   const targetCount = clamp(Math.round(settings.flowCount), 20, MAX_FLOWS)
   const normalFlowSpeed = settings.normalFlowSpeed ?? 1
   for (const flow of flows.slice(0, targetCount)) {
     if (flow.isLarge || flow.phase === "arriving" || flow.phase === "landing" || flow.phase === "fading") continue
+    const drawLimit = flow.phase === "drawing" ? clamp(flow.drawProgress, 0, 1) : 1
+    if (drawLimit <= 0.05) continue
     const cycle = 5200 / clamp(normalFlowSpeed, 0.1, 5)
-    const head = ((now + (hashText(flow.id) % 5000)) % cycle) / cycle
-    const tail = Math.max(0, head - 0.16)
-    const start = Math.floor(tail * (flow.arcPoints.length - 1))
-    const end = Math.max(start + 1, Math.floor(head * (flow.arcPoints.length - 1)))
-    for (let i = start; i < Math.min(end, flow.arcPoints.length - 1); i += 1) {
-      const a = flow.arcPoints[i]
-      const b = flow.arcPoints[i + 1]
-      positions.push(a[0], a[1], a[2], b[0], b[1], b[2])
-    }
+    const head = Math.min(drawLimit, ((now + (hashText(flow.id) % 5000)) % cycle) / cycle)
+    pushArcRange(tailPositions, flow.arcPoints, head - 0.22, head - 0.12)
+    pushArcRange(midPositions, flow.arcPoints, head - 0.12, head - 0.045)
+    pushArcRange(headPositions, flow.arcPoints, head - 0.045, head)
   }
-  return new Float32Array(positions)
+  return [new Float32Array(tailPositions), new Float32Array(midPositions), new Float32Array(headPositions)] as const
 }
 
 function largeTrailSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState) {
@@ -338,12 +475,13 @@ function largeTrailSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsSta
   return new Float32Array(positions)
 }
 
-function selectedRouteSegments(selected: Transaction, settings: GlobeSettingsState, now: number, fullRoute = false) {
+function selectedRouteSegments(selected: Transaction, settings: GlobeSettingsState, now: number, trailBoost = 0, fullRoute = false) {
   const from = toVec3(selected.source.lat, selected.source.lng)
   const to = toVec3(selected.target.lat, selected.target.lng)
   const points = createArcPoints(from, to, settings.arcHeight * 0.9, ARC_SEGMENTS)
   const phase = (now % 3600) / 3600
-  const start = fullRoute ? 0 : Math.floor(Math.max(0, phase - 0.22) * (points.length - 1))
+  const trailLength = 0.18 + trailBoost * 0.18
+  const start = fullRoute ? 0 : Math.floor(Math.max(0, phase - trailLength) * (points.length - 1))
   const end = fullRoute ? points.length - 1 : Math.max(start + 1, Math.floor(phase * (points.length - 1)))
   const positions: number[] = []
   for (let i = start; i < Math.min(end, points.length - 1); i += 1) {
@@ -381,14 +519,14 @@ function orientToSurface(mesh: THREE.Object3D, vec: Vec3, radius = 1.01) {
   mesh.position.copy(normal.multiplyScalar(radius))
 }
 
-function createGlowSprite(texture: THREE.Texture, size: number, opacity: number) {
+function createGlowSprite(texture: THREE.Texture, size: number, opacity: number, depthTest = true) {
   const material = new THREE.SpriteMaterial({
     map: texture,
     transparent: true,
     opacity,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
-    depthTest: true,
+    depthTest,
   })
   const sprite = new THREE.Sprite(material)
   sprite.scale.setScalar(size)
@@ -425,6 +563,11 @@ function setFatSegments(line: LineSegments2, positions: Float32Array) {
   geometry.setPositions(Array.from(positions))
   line.geometry = geometry
   old.dispose()
+}
+
+function isFrontHemisphere(object: THREE.Object3D, target = new THREE.Vector3()) {
+  object.getWorldPosition(target)
+  return target.z > -0.04
 }
 
 function createGlowTexture(color: string) {
@@ -537,12 +680,26 @@ export function ThreeGlobeCanvas({
   const dragRef = useRef({ active: false, startX: 0, startY: 0, startPhi: 0, startTheta: 0, velocity: 0, lastX: 0, lastT: 0 })
   const flowsRef = useRef<FlowTx[]>([])
   const lastAddRef = useRef(0)
+  const focusMotionRef = useRef({ glow: 1, trail: 0, worldDim: 1 })
   const landPoints = useMemo(() => createLandPoints(), [])
 
   useEffect(() => {
     latestRef.current = { transactions, selected, mode, flightStartedAt, onFlightDone, globeSettings }
     if (mode === "flight") doneRef.current = false
   }, [flightStartedAt, globeSettings, mode, onFlightDone, selected, transactions])
+
+  useEffect(() => {
+    const motion = focusMotionRef.current
+    const animation = animate(motion, {
+      glow: mode === "focus" ? [0.74, 1.38, 1.08] : 1,
+      trail: mode === "focus" ? [0, 1] : 0,
+      worldDim: mode === "focus" ? 0.74 : 1,
+      duration: 720,
+      ease: "outExpo",
+    })
+
+    return () => animation.cancel()
+  }, [mode, selected.id])
 
   useEffect(() => {
     const settings = latestRef.current.globeSettings
@@ -552,6 +709,7 @@ export function ThreeGlobeCanvas({
       const largeCount = flowsRef.current.filter((tx) => tx.isLarge).length
       const tx = createFlow(now - index * 67, nodes, settings, largeCount, true)
       tx.breathAlpha = 0.25 + Math.random() * 0.75
+      tx.usesAnime = true
       return tx
     })
     lastAddRef.current = now
@@ -640,12 +798,25 @@ export function ThreeGlobeCanvas({
     setFatSegments(gridLines, gridSegments())
     const normalGlowLines = createFatSegments("#1c7ea5", 0.1, 2.2, lineResolution)
     const normalLines = createFatSegments("#236991", 0.18, 1.05, lineResolution)
-    const shimmerLines = createFatSegments("#7ef4ff", 0.32, 1.35, lineResolution)
+    const shimmerTailLines = createFatSegments("#38bdf8", 0.09, 0.7, lineResolution)
+    const shimmerMidLines = createFatSegments("#67e8f9", 0.18, 1.05, lineResolution)
+    const shimmerHeadLines = createFatSegments("#f5feff", 0.34, 1.45, lineResolution)
     const largeLines = createFatSegments("#38bdf8", 0.32, 1.6, lineResolution)
     const largeTrailLines = createFatSegments("#fbbf24", 0.72, 3.1, lineResolution)
     const selectedBaseLines = createFatSegments("#ff2a2a", 0.34, 2.1, lineResolution)
     const selectedLines = createFatSegments("#ffe04d", 0.92, 3.4, lineResolution)
-    globeGroup.add(gridLines, normalGlowLines, normalLines, shimmerLines, largeLines, largeTrailLines, selectedBaseLines, selectedLines)
+    globeGroup.add(
+      gridLines,
+      normalGlowLines,
+      normalLines,
+      shimmerTailLines,
+      shimmerMidLines,
+      shimmerHeadLines,
+      largeLines,
+      largeTrailLines,
+      selectedBaseLines,
+      selectedLines,
+    )
 
     const hotTexture = createGlowTexture("rgba(255,248,231,0.95)")
     const warmTexture = createGlowTexture("rgba(251,191,36,0.95)")
@@ -656,12 +827,12 @@ export function ThreeGlobeCanvas({
       return dot
     })
     const sourcePulses = Array.from({ length: 20 }, () => {
-      const pulse = createGlowSprite(warmTexture, 0.16, 0)
+      const pulse = createGlowSprite(warmTexture, 0.16, 0, false)
       globeGroup.add(pulse)
       return pulse
     })
     const targetPulses = Array.from({ length: 20 }, () => {
-      const pulse = createGlowSprite(cyanTexture, 0.16, 0)
+      const pulse = createGlowSprite(cyanTexture, 0.16, 0, false)
       globeGroup.add(pulse)
       return pulse
     })
@@ -779,41 +950,56 @@ export function ThreeGlobeCanvas({
 
       const shouldUpdateGeometry = now - lastGeometryUpdate > (drag.active ? 260 : 90)
       if (shouldUpdateGeometry) {
+        const focusMotion = focusMotionRef.current
         const normalSegments = lineSegmentsFromFlows(flowsRef.current, current.globeSettings, false, now)
         setFatSegments(normalGlowLines, normalSegments)
         setFatSegments(normalLines, normalSegments)
         setFatSegments(largeLines, lineSegmentsFromFlows(flowsRef.current, current.globeSettings, true, now))
         setFatSegments(largeTrailLines, largeTrailSegmentsFromFlows(flowsRef.current, current.globeSettings))
-        setFatSegments(shimmerLines, shimmerSegmentsFromFlows(flowsRef.current, current.globeSettings, now))
+        const shimmerSegments = shimmerSegmentsFromFlows(flowsRef.current, current.globeSettings, now)
+        setFatSegments(shimmerTailLines, shimmerSegments[0])
+        setFatSegments(shimmerMidLines, shimmerSegments[1])
+        setFatSegments(shimmerHeadLines, shimmerSegments[2])
         const showSelected = current.mode === "focus" || (current.mode === "flight" && rawFlight <= 0.08)
-        setFatSegments(selectedBaseLines, showSelected ? selectedRouteSegments(current.selected, current.globeSettings, now, true) : new Float32Array())
-        setFatSegments(selectedLines, showSelected ? selectedRouteSegments(current.selected, current.globeSettings, now) : new Float32Array())
+        setFatSegments(selectedBaseLines, showSelected ? selectedRouteSegments(current.selected, current.globeSettings, now, focusMotion.trail, true) : new Float32Array())
+        setFatSegments(selectedLines, showSelected ? selectedRouteSegments(current.selected, current.globeSettings, now, focusMotion.trail) : new Float32Array())
         lastGeometryUpdate = now
       }
 
       const normalGlowMaterial = normalGlowLines.material as LineMaterial
       const gridMaterial = gridLines.material as LineMaterial
       const normalMaterial = normalLines.material as LineMaterial
-      const shimmerMaterial = shimmerLines.material as LineMaterial
+      const shimmerTailMaterial = shimmerTailLines.material as LineMaterial
+      const shimmerMidMaterial = shimmerMidLines.material as LineMaterial
+      const shimmerHeadMaterial = shimmerHeadLines.material as LineMaterial
       const largeMaterial = largeLines.material as LineMaterial
       const largeTrailMaterial = largeTrailLines.material as LineMaterial
       const selectedBaseMaterial = selectedBaseLines.material as LineMaterial
       const selectedMaterial = selectedLines.material as LineMaterial
+      const focusMotion = focusMotionRef.current
+      const ambientRouteDim = current.mode === "focus" ? focusMotion.worldDim : 1
       const normalPulse = 1 + Math.sin(now * 0.0026) * 0.18 * (current.globeSettings.normalPulse ?? 1)
       gridLines.visible = current.globeSettings.showGrid
       gridMaterial.opacity = current.globeSettings.showGrid ? 0.055 * current.globeSettings.surfaceBrightness : 0
-      normalGlowMaterial.opacity = 0.1 * normalPulse * current.globeSettings.arcBrightness * (current.globeSettings.normalGlow ?? 1)
-      normalMaterial.opacity = 0.18 * normalPulse * current.globeSettings.arcBrightness * (current.globeSettings.normalGlow ?? 1)
-      shimmerMaterial.opacity = 0.28 * normalPulse * current.globeSettings.arcBrightness * (current.globeSettings.normalHighlight ?? 1)
-      largeMaterial.opacity = 0.28 * current.globeSettings.arcBrightness * (current.globeSettings.largeGlow ?? 1)
-      largeTrailMaterial.opacity = 0.68 * current.globeSettings.arcBrightness * (current.globeSettings.largeGlow ?? 1)
+      normalGlowMaterial.opacity = 0.1 * normalPulse * current.globeSettings.arcBrightness * (current.globeSettings.normalGlow ?? 1) * ambientRouteDim
+      normalMaterial.opacity = 0.18 * normalPulse * current.globeSettings.arcBrightness * (current.globeSettings.normalGlow ?? 1) * ambientRouteDim
+      const shimmerBaseOpacity = normalPulse * current.globeSettings.arcBrightness * (current.globeSettings.normalHighlight ?? 1) * ambientRouteDim
+      shimmerTailMaterial.opacity = 0.08 * shimmerBaseOpacity
+      shimmerMidMaterial.opacity = 0.18 * shimmerBaseOpacity
+      shimmerHeadMaterial.opacity = 0.34 * shimmerBaseOpacity
+      largeMaterial.opacity = 0.28 * current.globeSettings.arcBrightness * (current.globeSettings.largeGlow ?? 1) * ambientRouteDim
+      largeTrailMaterial.opacity = 0.68 * current.globeSettings.arcBrightness * (current.globeSettings.largeGlow ?? 1) * ambientRouteDim
       normalGlowMaterial.linewidth = 2.1 * (current.globeSettings.normalLineWidth ?? 1) * (current.globeSettings.normalGlow ?? 1)
       normalMaterial.linewidth = 0.9 * (current.globeSettings.normalLineWidth ?? 1)
-      shimmerMaterial.linewidth = 1.25 * (current.globeSettings.normalLineWidth ?? 1)
+      shimmerTailMaterial.linewidth = 0.68 * (current.globeSettings.normalLineWidth ?? 1)
+      shimmerMidMaterial.linewidth = 1.0 * (current.globeSettings.normalLineWidth ?? 1)
+      shimmerHeadMaterial.linewidth = 1.38 * (current.globeSettings.normalLineWidth ?? 1)
       largeMaterial.linewidth = 1.35
       largeTrailMaterial.linewidth = 2.4 * (current.globeSettings.largeDotScale ?? 1)
-      selectedBaseMaterial.linewidth = 1.8
-      selectedMaterial.linewidth = 3.0
+      selectedBaseMaterial.opacity = 0.3 * focusMotion.glow
+      selectedMaterial.opacity = 0.82 * focusMotion.glow
+      selectedBaseMaterial.linewidth = 1.6 + focusMotion.glow * 0.35
+      selectedMaterial.linewidth = 2.4 + focusMotion.glow * 0.72
       const globeMaterial = sphere.material as THREE.ShaderMaterial
       globeMaterial.uniforms.brightness.value = current.globeSettings.surfaceBrightness ?? 1.28
       const landMaterial = land.material as THREE.PointsMaterial
@@ -829,15 +1015,16 @@ export function ThreeGlobeCanvas({
       let targetPulseIndex = 0
       for (const pulse of sourcePulses) pulse.visible = false
       for (const pulse of targetPulses) pulse.visible = false
+      const pulseWorldPosition = new THREE.Vector3()
       for (const flow of flowsRef.current) {
         if (!flow.isLarge) continue
         if (flow.phase === "arriving" && sourcePulseIndex < sourcePulses.length) {
-          const progress = easeOutCubic(clamp((now - flow.phaseStartedAt) / ARRIVING_MS, 0, 1))
+          const progress = flow.usesAnime ? flow.sourcePulse : easeOutCubic(clamp((now - flow.phaseStartedAt) / ARRIVING_MS, 0, 1))
           const pulse = sourcePulses[sourcePulseIndex]
-          orientToSurface(pulse, flow.from.vec, 1.018)
+          orientToSurface(pulse, flow.from.vec, 1.055)
           pulse.scale.setScalar((0.08 + progress * 0.22) * (current.globeSettings.largeDotScale ?? 1))
           ;(pulse.material as THREE.SpriteMaterial).opacity = clamp((1 - progress) * 0.86 * (current.globeSettings.largeGlow ?? 1), 0, 1)
-          pulse.visible = true
+          pulse.visible = isFrontHemisphere(pulse, pulseWorldPosition)
           sourcePulseIndex += 1
         }
         if (flow.phase === "flying" && dotIndex < largeDots.length) {
@@ -851,12 +1038,12 @@ export function ThreeGlobeCanvas({
           dotIndex += 1
         }
         if (flow.phase === "landing" && targetPulseIndex < targetPulses.length) {
-          const progress = easeOutCubic(clamp((now - flow.phaseStartedAt) / LANDING_MS, 0, 1))
+          const progress = flow.usesAnime ? flow.targetPulse : easeOutCubic(clamp((now - flow.phaseStartedAt) / LANDING_MS, 0, 1))
           const pulse = targetPulses[targetPulseIndex]
-          orientToSurface(pulse, flow.to.vec, 1.018)
+          orientToSurface(pulse, flow.to.vec, 1.055)
           pulse.scale.setScalar((0.08 + progress * 0.24) * (current.globeSettings.largeDotScale ?? 1))
           ;(pulse.material as THREE.SpriteMaterial).opacity = clamp((1 - progress) * 0.88 * (current.globeSettings.largeGlow ?? 1), 0, 1)
-          pulse.visible = true
+          pulse.visible = isFrontHemisphere(pulse, pulseWorldPosition)
           targetPulseIndex += 1
         }
       }
@@ -883,7 +1070,9 @@ export function ThreeGlobeCanvas({
       gridLines.geometry.dispose()
       normalGlowLines.geometry.dispose()
       normalLines.geometry.dispose()
-      shimmerLines.geometry.dispose()
+      shimmerTailLines.geometry.dispose()
+      shimmerMidLines.geometry.dispose()
+      shimmerHeadLines.geometry.dispose()
       largeLines.geometry.dispose()
       largeTrailLines.geometry.dispose()
       selectedBaseLines.geometry.dispose()
@@ -891,7 +1080,9 @@ export function ThreeGlobeCanvas({
       ;(gridLines.material as THREE.Material).dispose()
       ;(normalGlowLines.material as THREE.Material).dispose()
       ;(normalLines.material as THREE.Material).dispose()
-      ;(shimmerLines.material as THREE.Material).dispose()
+      ;(shimmerTailLines.material as THREE.Material).dispose()
+      ;(shimmerMidLines.material as THREE.Material).dispose()
+      ;(shimmerHeadLines.material as THREE.Material).dispose()
       ;(largeLines.material as THREE.Material).dispose()
       ;(largeTrailLines.material as THREE.Material).dispose()
       ;(selectedBaseLines.material as THREE.Material).dispose()
@@ -905,6 +1096,7 @@ export function ThreeGlobeCanvas({
       for (const pulse of [...sourcePulses, ...targetPulses]) {
         ;(pulse.material as THREE.Material).dispose()
       }
+      for (const flow of flowsRef.current) cancelFlowAnimations(flow)
       renderer.domElement.remove()
     }
   }, [landPoints, phiRef, thetaRef])

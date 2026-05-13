@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { CSSProperties } from "react"
+import { animate, utils } from "animejs"
 import {
   ArrowRight,
   RotateCw,
@@ -65,6 +66,47 @@ function ReplayButton() {
       <RotateCw size={12} />
     </button>
   )
+}
+
+/**
+ * Drives a glitch-style flicker on the central globe stage in sync with the
+ * boot/replay state. On mount and on `epoch` bump (replay), the globe
+ * stutters in over ~1s; when bootVisible flips false (close phase) it
+ * stutters out to a near-invisible dim. Lives inside FuturisticPanelProvider
+ * so it can call useBoot.
+ */
+function GlobeGlitch() {
+  const { visible, epoch } = useBoot()
+  const initialRef = useRef(true)
+
+  useEffect(() => {
+    const stage = document.querySelector<HTMLElement>(".globe-stage")
+    if (!stage) return
+
+    utils.remove(stage)
+
+    if (visible) {
+      // Glitch IN — opacity stutters from near-dark to full over ~1s. The
+      // 12-keyframe array sampled at high frequency reads as glitch flicker.
+      animate(stage, {
+        opacity: [0.05, 0.6, 0.15, 0.85, 0.3, 0.95, 0.55, 1, 0.7, 1, 0.9, 1],
+        duration: 1050,
+        ease: "linear",
+      })
+    } else if (!initialRef.current) {
+      // Glitch OUT — skip on the very first mount (visible flips false→true
+      // through the provider's 50ms boot init).
+      animate(stage, {
+        opacity: [1, 0.55, 0.9, 0.25, 0.7, 0.15, 0.45, 0.08, 0.05],
+        duration: 900,
+        ease: "linear",
+      })
+    }
+
+    initialRef.current = false
+  }, [visible, epoch])
+
+  return null
 }
 
 export const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
@@ -140,6 +182,7 @@ export function App() {
 
   return (
     <FuturisticPanelProvider>
+      <GlobeGlitch />
       <main className="app-shell" style={grainCssVars(globeSettings)}>
         {/* Globe fills entire viewport */}
         <div className="globe-stage">

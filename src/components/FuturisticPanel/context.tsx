@@ -39,7 +39,7 @@ export function FuturisticPanelProvider({ children }: { children: ReactNode }) {
       setVisible(true)
       setEpoch((e) => e + 1)
       timeoutRef.current = null
-    }, 700)
+    }, 1250)
   }, [])
 
   return (
