@@ -19,6 +19,7 @@ import { TerminalBoot } from "./components/TerminalBoot"
 type Mode = "monitor" | "focus"
 
 export const FLIGHT_DURATION = 6400
+const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#%·→/"
 
 export type BootSettingsState = {
   minDurationMs: number
@@ -74,6 +75,46 @@ function Metric({ label, value, accent }: { label: string; value: string; accent
       <div className="metric-val" style={accent ? { color: accent } : undefined}>{value}</div>
     </div>
   )
+}
+
+function ScrambleText({ value }: { value: string | number }) {
+  const target = String(value)
+  const [display, setDisplay] = useState(target)
+  const previousRef = useRef(target)
+
+  useEffect(() => {
+    const previous = previousRef.current
+    previousRef.current = target
+    if (previous === target) return
+
+    let frame = 0
+    const maxLength = Math.max(previous.length, target.length)
+    const totalFrames = 18
+    const interval = window.setInterval(() => {
+      frame += 1
+      const progress = frame / totalFrames
+      const locked = Math.floor(progress * maxLength)
+      let next = ""
+
+      for (let i = 0; i < maxLength; i += 1) {
+        if (i < locked) {
+          next += target[i] ?? ""
+        } else if (i < target.length) {
+          next += SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)]
+        }
+      }
+
+      setDisplay(next)
+      if (frame >= totalFrames) {
+        window.clearInterval(interval)
+        setDisplay(target)
+      }
+    }, 28)
+
+    return () => window.clearInterval(interval)
+  }, [target])
+
+  return <>{display}</>
 }
 
 function TransactionRow({
@@ -419,32 +460,32 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         >
           <div className="detail-route">
             <div className="detail-from-to">
-              <span>{selected.source.city}</span>
+              <span><ScrambleText value={selected.source.city} /></span>
               <ArrowRight size={14} />
-              <span>{selected.target.city}</span>
+              <span><ScrambleText value={selected.target.city} /></span>
             </div>
             <div className="detail-amounts">
-              <span>{formatMoney(selected.source.amount, selected.source.currency)}</span>
+              <span><ScrambleText value={formatMoney(selected.source.amount, selected.source.currency)} /></span>
               <span className="detail-arrow">→</span>
-              <span>{formatMoney(selected.target.amount, selected.target.currency)}</span>
+              <span><ScrambleText value={formatMoney(selected.target.amount, selected.target.currency)} /></span>
             </div>
           </div>
           <div className="detail-stats">
             <div className="detail-stat">
               <span className="ds-label">FX</span>
-              <span className="ds-val">{selected.exchangeRate}</span>
+              <span className="ds-val"><ScrambleText value={selected.exchangeRate} /></span>
             </div>
             <div className="detail-stat">
               <span className="ds-label">FEE</span>
-              <span className="ds-val">{formatMoney(selected.fee, "USD")}</span>
+              <span className="ds-val"><ScrambleText value={formatMoney(selected.fee, "USD")} /></span>
             </div>
             <div className="detail-stat">
               <span className="ds-label">RAIL</span>
-              <span className="ds-val">{selected.rail}</span>
+              <span className="ds-val"><ScrambleText value={selected.rail} /></span>
             </div>
             <div className="detail-stat">
               <span className="ds-label">RISK</span>
-              <span className="ds-val" style={{ color: selected.riskScore < 30 ? "var(--hud-green)" : "var(--hud-yellow)" }}>{selected.riskScore}</span>
+              <span className="ds-val" style={{ color: selected.riskScore < 30 ? "var(--hud-green)" : "var(--hud-yellow)" }}><ScrambleText value={selected.riskScore} /></span>
             </div>
           </div>
           {mode === "focus" && (
