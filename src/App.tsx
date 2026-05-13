@@ -3,6 +3,7 @@ import type { CSSProperties } from "react"
 import { animate, utils } from "animejs"
 import {
   ArrowRight,
+  X,
   RotateCw,
 } from "lucide-react"
 import { ThreeGlobeCanvas } from "./components/ThreeGlobeCanvas"
@@ -122,8 +123,8 @@ function GlobeGlitch() {
 }
 
 export const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
-  arcHeight: 0.2,
-  rotateSpeed: 0.003,
+  arcHeight: 0.3,
+  rotateSpeed: 0.002,
   arcBrightness: 0.5,
   showGrid: false,
   maxLargeAnimated: 8,
@@ -143,8 +144,8 @@ export const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
   transactionBufferSize: 300,
   transactionListSize: 15,
   streamIntervalMs: 1400,
-  surfaceBrightness: 1.75,
-  landBrightness: 1.65,
+  surfaceBrightness: 1.05,
+  landBrightness: 0.75,
   grainEnabled: true,
   grainOpacity: 0.17,
   grainScale: 1.10,
@@ -188,14 +189,26 @@ export function App() {
   const thetaRef = useRef(0.22)
 
   const selected = useMemo(
-    () => live.transactions.find((tx) => tx.id === selectedId) ?? live.transactions[0],
-    [live.transactions, selectedId],
+    () => {
+      if (mode === "monitor") return live.transactions[0]
+      return live.transactions.find((tx) => tx.id === selectedId) ?? live.transactions[0]
+    },
+    [live.transactions, mode, selectedId],
   )
 
   // Focus track: click a transaction row
   const focusTransaction = (tx: Transaction) => {
+    if (mode === "focus" && tx.id === selectedId) {
+      setMode("monitor")
+      return
+    }
     setSelectedId(tx.id)
     setMode("focus")
+  }
+
+  const clearFocus = () => {
+    setSelectedId(live.transactions[0]?.id ?? selectedId)
+    setMode("monitor")
   }
 
   return (
@@ -327,6 +340,12 @@ export function App() {
               <span className="ds-val" style={{ color: selected.riskScore < 30 ? "var(--hud-green)" : "var(--hud-yellow)" }}>{selected.riskScore}</span>
             </div>
           </div>
+          {mode === "focus" && (
+            <button className="detail-clear-focus" type="button" onClick={clearFocus} aria-label="Return to monitor mode">
+              <X size={12} />
+              <span>Monitor</span>
+            </button>
+          )}
         </FuturisticPanel>
 
         {/* Globe Settings Panel */}

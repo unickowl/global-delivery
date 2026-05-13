@@ -878,8 +878,8 @@ export function ThreeGlobeCanvas({
     const largeTrailLines = createFatSegments("#fbbf24", 0.72, 3.1, lineResolution)
     const failedGlowLines = createFatSegments("#ff1f1f", 0.7, 5.2, lineResolution)
     const failedLines = createFatSegments("#ff5555", 0.95, 2.8, lineResolution)
-    const selectedBaseLines = createFatSegments("#ff2a2a", 0.34, 2.1, lineResolution)
-    const selectedLines = createFatSegments("#ffe04d", 0.92, 3.4, lineResolution)
+    const selectedBaseLines = createFatSegments("#00e5ff", 0.34, 2.1, lineResolution)
+    const selectedLines = createFatSegments("#fbbf24", 0.92, 3.4, lineResolution)
     globeGroup.add(
       gridLines,
       normalGlowLines,
