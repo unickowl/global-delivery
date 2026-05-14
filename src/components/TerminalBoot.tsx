@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import type { CSSProperties } from "react"
 import { cn } from "../lib/utils"
 
 type LineTag = "OK" | "SYNC" | "INIT" | "WAIT" | "FAIL"
@@ -64,6 +65,7 @@ const HEX_POOL = [
 
 const MAX_HEX_LINES = 34
 const MAX_FILLER_LINES = 80
+const POWER_ON_MS = 1900
 
 export type TerminalBootProps = {
   onComplete?: () => void
@@ -76,6 +78,11 @@ export type TerminalBootProps = {
   stallThresholdMs?: number
   fillerLineMs?: number
   maxTimeoutMs?: number
+  crtWarp?: number
+  crtBulge?: number
+  crtEdgeCurve?: number
+  crtSafePadding?: number
+  crtVignette?: number
 }
 
 export function TerminalBoot({
@@ -89,6 +96,11 @@ export function TerminalBoot({
   stallThresholdMs = 8000,
   fillerLineMs = 600,
   maxTimeoutMs = 30000,
+  crtWarp = 5,
+  crtBulge = 14,
+  crtEdgeCurve = 1.4,
+  crtSafePadding = 1,
+  crtVignette = 1,
 }: TerminalBootProps) {
   const startedAtRef = useRef(Date.now())
   const fillerCursorRef = useRef(0)
@@ -98,17 +110,28 @@ export function TerminalBoot({
   const [hexLines, setHexLines] = useState<string[]>([])
   const [finalShown, setFinalShown] = useState(false)
   const [exiting, setExiting] = useState(false)
+  const [poweredOn, setPoweredOn] = useState(false)
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      startedAtRef.current = Date.now()
+      setPoweredOn(true)
+    }, POWER_ON_MS)
+    return () => window.clearTimeout(id)
+  }, [])
 
   // Reveal core boot lines one by one.
   useEffect(() => {
+    if (!poweredOn) return
     if (revealedCore >= CORE_LINES.length) return
     const id = window.setTimeout(() => setRevealedCore((r) => r + 1), lineRevealMs)
     return () => window.clearTimeout(id)
-  }, [revealedCore, lineRevealMs])
+  }, [poweredOn, revealedCore, lineRevealMs])
 
   // After core lines are revealed, poll for the "all gates open" condition:
   // both minDuration elapsed AND ready signal high. maxTimeoutMs forces proceed.
   useEffect(() => {
+    if (!poweredOn) return
     if (revealedCore < CORE_LINES.length || finalShown) return
     const check = () => {
       const elapsed = Date.now() - startedAtRef.current
@@ -119,7 +142,7 @@ export function TerminalBoot({
     check()
     const id = window.setInterval(check, 80)
     return () => window.clearInterval(id)
-  }, [revealedCore, ready, minDurationMs, maxTimeoutMs, finalShown])
+  }, [poweredOn, revealedCore, ready, minDurationMs, maxTimeoutMs, finalShown])
 
   // If we've been holding past stallThreshold without ready, fabricate filler
   // lines so the terminal keeps scrolling. Each successive filler waits longer
@@ -127,6 +150,7 @@ export function TerminalBoot({
   // decelerates — reads as "the system is grinding to a halt" rather than a
   // steady fake march.
   useEffect(() => {
+    if (!poweredOn) return
     if (revealedCore < CORE_LINES.length || finalShown) return
 
     let cancelled = false
@@ -162,7 +186,7 @@ export function TerminalBoot({
       cancelled = true
       if (timerId !== undefined) window.clearTimeout(timerId)
     }
-  }, [revealedCore, finalShown, stallThresholdMs, fillerLineMs])
+  }, [poweredOn, revealedCore, finalShown, stallThresholdMs, fillerLineMs])
 
   useEffect(() => {
     const log = logRef.current
@@ -186,6 +210,7 @@ export function TerminalBoot({
 
   // Hex decode column — continuous, independent of boot phase.
   useEffect(() => {
+    if (!poweredOn) return
     let i = 0
     const id = window.setInterval(() => {
       setHexLines((h) => {
@@ -195,7 +220,7 @@ export function TerminalBoot({
       i += 1
     }, hexIntervalMs)
     return () => window.clearInterval(id)
-  }, [hexIntervalMs])
+  }, [poweredOn, hexIntervalMs])
 
   // Progress never reaches 100% until MONITOR ONLINE is actually shown.
   // Core lines fill 0 → ~89% (9 known slots, 8 of them revealed),
@@ -212,13 +237,30 @@ export function TerminalBoot({
     progress = Math.min(99, Math.round(corePct + fillerPct))
   }
 
+  const crtStyle: CSSProperties = {
+    ["--lb-crt-bulge" as string]: `${crtBulge}px`,
+    ["--lb-crt-bulge-n" as string]: crtBulge,
+    ["--lb-crt-edge-curve" as string]: `${crtEdgeCurve}deg`,
+    ["--lb-crt-edge-curve-n" as string]: crtEdgeCurve,
+    ["--lb-crt-safe-pad-x" as string]: `${40 * crtSafePadding}px`,
+    ["--lb-crt-safe-pad-y" as string]: `${48 * crtSafePadding}px`,
+    ["--lb-crt-vignette" as string]: crtVignette,
+  }
+
   return (
-    <div className={cn("loading-b", exiting && "is-exiting")}>
+    <div className={cn("loading-b", exiting && "is-exiting")} style={crtStyle}>
+      <svg className="lb-filter-defs" aria-hidden focusable="false">
+        <filter id="lb-crt-warp">
+          <feTurbulence type="fractalNoise" baseFrequency="0.0018 0.0032" numOctaves="1" seed="7" result="noise" />
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale={crtWarp + crtEdgeCurve * 1.6} xChannelSelector="R" yChannelSelector="B" />
+        </filter>
+      </svg>
       <div className="lb-crt-grain" aria-hidden />
       <div className="lb-crt-rgb" aria-hidden />
       <div className="lb-crt-roll" aria-hidden />
       <div className="lb-crt-tear" aria-hidden />
       <div className="lb-crt-vignette" aria-hidden />
+      <div className="lb-power-on" aria-hidden />
       <header className="lb-header">
         <span className="lb-prompt">[ OWLPAY MONITOR // BOOT SEQ ]</span>
         <span className="lb-host">monitor@global-rails:~$ ./boot --mode=fullscan</span>
@@ -232,7 +274,7 @@ export function TerminalBoot({
             <LineRow key={`fill-${i}`} line={line} />
           ))}
           {finalShown && <LineRow key="final" line={FINAL_LINE} />}
-          {!finalShown && (
+          {poweredOn && !finalShown && (
             <div className="lb-line lb-active">
               <span className="lb-tag">[ ···· ]</span>
               <span className="lb-msg">…</span>

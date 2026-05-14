@@ -33,6 +33,11 @@ export type BootSettingsState = {
   fillerLineMs: number
   maxTimeoutMs: number
   mockSlowApi: boolean
+  crtWarp: number
+  crtBulge: number
+  crtEdgeCurve: number
+  crtSafePadding: number
+  crtVignette: number
 }
 
 export const DEFAULT_BOOT_SETTINGS: BootSettingsState = {
@@ -45,6 +50,11 @@ export const DEFAULT_BOOT_SETTINGS: BootSettingsState = {
   fillerLineMs: 600,
   maxTimeoutMs: 30000,
   mockSlowApi: false,
+  crtWarp: 0,
+  crtBulge: 10,
+  crtEdgeCurve: 1.8,
+  crtSafePadding: 0.9,
+  crtVignette: 1,
 }
 
 export function StartupLoading({
@@ -66,6 +76,11 @@ export function StartupLoading({
       stallThresholdMs={settings.stallThresholdMs}
       fillerLineMs={settings.fillerLineMs}
       maxTimeoutMs={settings.maxTimeoutMs}
+      crtWarp={settings.crtWarp}
+      crtBulge={settings.crtBulge}
+      crtEdgeCurve={settings.crtEdgeCurve}
+      crtSafePadding={settings.crtSafePadding}
+      crtVignette={settings.crtVignette}
     />
   )
 }

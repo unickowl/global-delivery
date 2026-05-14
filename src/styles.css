@@ -1663,7 +1663,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   inset: 0;
   z-index: 1000;
   isolation: isolate;
-  padding: 40px clamp(28px, 5vw, 64px);
+  padding: var(--lb-crt-safe-pad-y, 48px) clamp(var(--lb-crt-safe-pad-x, 40px), 6vw, calc(var(--lb-crt-safe-pad-x, 40px) * 2.05));
   background:
     radial-gradient(ellipse at 50% 50%, rgba(20, 40, 36, 0.45), rgba(2, 5, 8, 1) 78%),
     var(--hud-bg);
@@ -1672,7 +1672,15 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   gap: 22px;
   overflow: hidden;
   font-family: var(--font-boot);
+  perspective: 1100px;
   animation: lb-flicker 5.4s steps(1) infinite;
+}
+
+.lb-filter-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 @keyframes lb-flicker {
@@ -1823,8 +1831,96 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   z-index: 11;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.5) 100%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.18), transparent 8%, transparent 92%, rgba(0, 0, 0, 0.22));
+    radial-gradient(ellipse at 50% 50%, transparent 44%, rgba(0, 0, 0, calc(0.36 * var(--lb-crt-vignette, 1))) 83%, rgba(0, 0, 0, calc(0.72 * var(--lb-crt-vignette, 1))) 100%),
+    radial-gradient(ellipse at 50% 50%, rgba(125, 246, 255, calc(0.045 * var(--lb-crt-vignette, 1))), transparent 62%),
+    linear-gradient(90deg, rgba(0, 0, 0, calc(0.34 * var(--lb-crt-vignette, 1))), transparent 10%, transparent 90%, rgba(0, 0, 0, calc(0.34 * var(--lb-crt-vignette, 1)))),
+    linear-gradient(180deg, rgba(0, 0, 0, calc(0.24 * var(--lb-crt-vignette, 1))), transparent 8%, transparent 92%, rgba(0, 0, 0, calc(0.3 * var(--lb-crt-vignette, 1))));
+  box-shadow:
+    inset 0 0 80px rgba(0, 0, 0, calc(0.54 * var(--lb-crt-vignette, 1))),
+    inset 0 0 180px rgba(0, 0, 0, calc(0.34 * var(--lb-crt-vignette, 1)));
+}
+
+.lb-crt-vignette::before,
+.lb-crt-vignette::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lb-power-on {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  background: #000;
+  animation: lb-power-cover 1900ms cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+.lb-power-on::before,
+.lb-power-on::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+  background: #fff;
+  box-shadow:
+    0 0 12px rgba(255, 255, 255, 0.95),
+    0 0 42px rgba(125, 246, 255, 0.62),
+    0 0 120px rgba(255, 255, 255, 0.36);
+}
+
+.lb-power-on::before {
+  width: 1px;
+  height: 2px;
+  transform: translate(-50%, -50%);
+  animation: lb-power-horizontal 1320ms cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+.lb-power-on::after {
+  width: 2px;
+  height: 1px;
+  transform: translate(-50%, -50%);
+  animation: lb-power-vertical 1320ms cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+@keyframes lb-power-cover {
+  0%, 68% { opacity: 1; visibility: visible; }
+  84% { opacity: 0.92; visibility: visible; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+@keyframes lb-power-horizontal {
+  0%, 22% { opacity: 0; width: 1px; height: 2px; filter: brightness(0); }
+  28% { opacity: 1; width: 22vw; height: 2px; filter: brightness(7) blur(0.2px); }
+  36% { opacity: 1; width: 96vw; height: 3px; filter: brightness(9) blur(0.4px); }
+  46% { opacity: 0.92; width: 80vw; height: 1px; filter: brightness(4) blur(0.8px); }
+  58% { opacity: 0.65; width: 100vw; height: 18px; filter: brightness(2.2) blur(7px); }
+  72% { opacity: 0.12; width: 100vw; height: 100vh; filter: brightness(0.7) blur(20px); }
+  100% { opacity: 0; width: 100vw; height: 100vh; filter: brightness(0) blur(0); }
+}
+
+@keyframes lb-power-vertical {
+  0%, 36% { opacity: 0; width: 2px; height: 1px; filter: brightness(0); }
+  42% { opacity: 1; width: 2px; height: 18vh; filter: brightness(8) blur(0.3px); }
+  48% { opacity: 0.95; width: 3px; height: 86vh; filter: brightness(7) blur(0.5px); }
+  58% { opacity: 0.38; width: 22px; height: 100vh; filter: brightness(2) blur(8px); }
+  72% { opacity: 0.08; width: 100vw; height: 100vh; filter: brightness(0.4) blur(20px); }
+  100% { opacity: 0; width: 100vw; height: 100vh; filter: brightness(0) blur(0); }
+}
+
+.lb-crt-vignette::before {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(232, 251, 255, 0.055), transparent 44%),
+    radial-gradient(ellipse at 50% 50%, transparent 0 58%, rgba(0, 0, 0, 0.32) 88%, rgba(0, 0, 0, 0.62) 100%);
+  mix-blend-mode: screen;
+}
+
+.lb-crt-vignette::after {
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.36), transparent 14% 86%, rgba(0, 0, 0, 0.36)),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.3), transparent 13% 87%, rgba(0, 0, 0, 0.34));
 }
 
 .lb-header {
@@ -1837,6 +1933,10 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   color: var(--label-color);
   border-bottom: 1px solid rgba(125, 246, 255, 0.2);
   padding-bottom: 12px;
+  transform-origin: 50% 100%;
+  transform: perspective(1100px) rotateX(calc(var(--lb-crt-edge-curve, 1.4deg) * -1)) translateY(2px) scaleX(calc(1 - var(--lb-crt-edge-curve-n, 1.4) * 0.017857));
+  filter: url("#lb-crt-warp");
+  will-change: transform, filter;
 }
 
 .lb-prompt {
@@ -1856,6 +1956,15 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   gap: 36px;
   flex: 1;
   min-height: 0;
+  transform-origin: 50% 50%;
+  transform:
+    perspective(1100px)
+    translateZ(var(--lb-crt-bulge, 14px))
+    rotateX(calc(var(--lb-crt-edge-curve, 1.4deg) * 0.32))
+    scaleX(calc(1 + var(--lb-crt-bulge-n, 14) * 0.000285 - var(--lb-crt-edge-curve-n, 1.4) * 0.004))
+    scaleY(calc(1 + var(--lb-crt-bulge-n, 14) * 0.00043 - var(--lb-crt-edge-curve-n, 1.4) * 0.002));
+  filter: url("#lb-crt-warp");
+  will-change: transform, filter;
 }
 
 .lb-log {
@@ -2052,6 +2161,10 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   font-size: 13px;
   letter-spacing: 0.22em;
   color: var(--label-color);
+  transform-origin: 50% 0%;
+  transform: perspective(1100px) rotateX(var(--lb-crt-edge-curve, 1.4deg)) translateY(-2px) scaleX(calc(1 - var(--lb-crt-edge-curve-n, 1.4) * 0.017857));
+  filter: url("#lb-crt-warp");
+  will-change: transform, filter;
 }
 
 .lb-footer-brand {

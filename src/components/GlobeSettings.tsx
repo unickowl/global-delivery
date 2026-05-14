@@ -226,6 +226,51 @@ export function GlobeSettings({
               format={(v) => (v === 0 ? "off" : fmtMs(v))}
               onChange={(v) => updateBoot({ maxTimeoutMs: v })}
             />
+            <SettingSlider
+              label="CRT Warp"
+              value={bootSettings.crtWarp}
+              min={0}
+              max={24}
+              step={1}
+              format={(v) => v.toFixed(0)}
+              onChange={(v) => updateBoot({ crtWarp: v })}
+            />
+            <SettingSlider
+              label="CRT Bulge"
+              value={bootSettings.crtBulge}
+              min={0}
+              max={80}
+              step={2}
+              format={(v) => `${v.toFixed(0)}px`}
+              onChange={(v) => updateBoot({ crtBulge: v })}
+            />
+            <SettingSlider
+              label="CRT Edge Curve"
+              value={bootSettings.crtEdgeCurve}
+              min={0}
+              max={6}
+              step={0.1}
+              format={(v) => `${v.toFixed(1)}°`}
+              onChange={(v) => updateBoot({ crtEdgeCurve: v })}
+            />
+            <SettingSlider
+              label="CRT Safe Padding"
+              value={bootSettings.crtSafePadding}
+              min={0.65}
+              max={1.8}
+              step={0.05}
+              format={(v) => `${v.toFixed(2)}x`}
+              onChange={(v) => updateBoot({ crtSafePadding: v })}
+            />
+            <SettingSlider
+              label="CRT Vignette"
+              value={bootSettings.crtVignette}
+              min={0}
+              max={1.8}
+              step={0.05}
+              format={(v) => `${v.toFixed(2)}x`}
+              onChange={(v) => updateBoot({ crtVignette: v })}
+            />
           </Section>
 
           <Section title="Globe" defaultOpen>
