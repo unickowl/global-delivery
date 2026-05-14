@@ -150,12 +150,15 @@ export function TerminalBoot({
   // After MONITOR ONLINE renders: settle pause → glitch exit → notify caller.
   useEffect(() => {
     if (!finalShown) return
+    let exitId: number | undefined
     const settleId = window.setTimeout(() => {
       setExiting(true)
-      const exitId = window.setTimeout(() => onComplete?.(), exitMs)
-      return () => window.clearTimeout(exitId)
+      exitId = window.setTimeout(() => onComplete?.(), exitMs)
     }, settleMs)
-    return () => window.clearTimeout(settleId)
+    return () => {
+      window.clearTimeout(settleId)
+      if (exitId !== undefined) window.clearTimeout(exitId)
+    }
   }, [finalShown, settleMs, exitMs, onComplete])
 
   // Hex decode column — continuous, independent of boot phase.
