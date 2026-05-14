@@ -62,7 +62,6 @@ const FOCUS_LABEL_MS = 1200
 const FOCUS_FLIGHT_MS = 5600
 const FOCUS_TARGET_MS = 1600
 const EMPTY_SEGMENTS = new Float32Array()
-const ROUTE_CORRIDOR_MAX_Y = 0.76
 const CAMERA_CORRIDOR_MAX_Y = 0.52
 const MAX_VIEW_THETA = Math.PI / 2 - 0.04
 
@@ -262,35 +261,6 @@ function normalizeVec(target: Vec3) {
   return target
 }
 
-function constrainRouteCorridor(target: Vec3, from: Vec3, to: Vec3, t: number) {
-  const interior = Math.sin(Math.PI * clamp(t, 0, 1))
-  const maxY = ROUTE_CORRIDOR_MAX_Y + (1 - interior) * (1 - ROUTE_CORRIDOR_MAX_Y)
-  if (Math.abs(target[1]) <= maxY) return target
-
-  const sign = Math.sign(target[1]) || 1
-  const y = sign * maxY
-  let x = target[0]
-  let z = target[2]
-  let xz = Math.hypot(x, z)
-
-  if (xz < 0.0001) {
-    x = from[0] + to[0]
-    z = from[2] + to[2]
-    xz = Math.hypot(x, z)
-  }
-  if (xz < 0.0001) {
-    x = 1
-    z = 0
-    xz = 1
-  }
-
-  const radius = Math.sqrt(Math.max(0.0001, 1 - y * y))
-  target[0] = (x / xz) * radius
-  target[1] = y
-  target[2] = (z / xz) * radius
-  return target
-}
-
 function constrainCameraCorridor(target: Vec3, maxY = CAMERA_CORRIDOR_MAX_Y) {
   if (Math.abs(target[1]) <= maxY) return target
 
@@ -315,7 +285,6 @@ function constrainCameraCorridor(target: Vec3, maxY = CAMERA_CORRIDOR_MAX_Y) {
 
 function routeSurfacePointInto(target: Vec3, from: Vec3, to: Vec3, t: number) {
   slerpInto(target, from, to, t)
-  constrainRouteCorridor(target, from, to, t)
   return normalizeVec(target)
 }
 
