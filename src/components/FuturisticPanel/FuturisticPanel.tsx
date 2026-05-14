@@ -28,6 +28,8 @@ export interface FuturisticPanelProps extends Omit<HTMLAttributes<HTMLDivElement
   label?: string
   /** Show a vertical scan beam that loops while the panel is visible. */
   scanning?: boolean
+  /** External command for global expand/collapse controls. */
+  forceCollapsed?: boolean
   children: ReactNode
 }
 
@@ -61,6 +63,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     corners = ["lt", "rb"],
     label,
     scanning = false,
+    forceCollapsed,
     className,
     children,
     style,
@@ -74,6 +77,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
 
   const { visible: bootVisible, epoch } = useBoot()
   const [hasBootedOnce, setHasBootedOnce] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const prevContentStateRef = useRef<PanelState | null>(null)
   // Open-progress: 0 = closed (small center square), 1 = horizontal band,
   // 2 = fully open chamfered shape. Drives both clip-path and corner positions.
@@ -88,6 +92,11 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     setHasBootedOnce(false)
   }, [epoch])
 
+  useEffect(() => {
+    if (forceCollapsed === undefined) return
+    setCollapsed(forceCollapsed)
+  }, [forceCollapsed])
+
   // Once the boot reveal has played, settle into the resting "normal" state.
   // Open total: 150 (square flicker) + 350 (H expand) + 350 (V expand) +
   // 320 (content flicker) ≈ 1170ms, so wait at least that long.
@@ -98,6 +107,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   }, [bootVisible, hasBootedOnce, revealDelay])
 
   const state = resolveState(bootVisible, selected, hover, hasBootedOnce)
+  const isCollapsed = state !== "hidden" && collapsed
 
   // Apply revealDelay only to the boot reveal; transient state changes use no delay.
   const layerDelay = state === "visible" || state === "hidden" ? revealDelay : 0
@@ -112,6 +122,8 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
 
     const ltGroup = panel.querySelector<SVGGElement>('[data-corner-group="lt"]')
     const rbGroup = panel.querySelector<SVGGElement>('[data-corner-group="rb"]')
+    const ltToggle = panel.querySelector<HTMLButtonElement>('[data-corner-toggle="lt"]')
+    const rbToggle = panel.querySelector<HTMLButtonElement>('[data-corner-toggle="rb"]')
 
     const applyShape = (p: number) => {
       const cw = size.width
@@ -144,12 +156,22 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
 
       if (ltGroup) ltGroup.setAttribute("transform", `translate(${left} ${top})`)
       if (rbGroup) rbGroup.setAttribute("transform", `translate(${right - cs} ${bottom - cs})`)
+      if (ltToggle) {
+        ltToggle.style.transform = `translate(${left}px, ${top}px)`
+        ltToggle.style.width = `${cs}px`
+        ltToggle.style.height = `${cs}px`
+      }
+      if (rbToggle) {
+        rbToggle.style.transform = `translate(${right - cs}px, ${bottom - cs}px)`
+        rbToggle.style.width = `${cs}px`
+        rbToggle.style.height = `${cs}px`
+      }
     }
 
     utils.remove(openRef.current)
     utils.remove(panel)
 
-    const target = state === "hidden" ? 0 : 2
+    const target = state === "hidden" || isCollapsed ? 0 : 2
     const current = openRef.current.p
 
     // Already at target — just snap (covers normal/hover/selected and the
@@ -190,7 +212,8 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
       //   ① content flicker out (320ms, handled by content effect)
       //   ② vertical collapse (350ms, p: current → 1)
       //   ③ horizontal collapse to small square (350ms, p: 1 → 0)
-      //   ④ flicker the tiny center square out (150ms, opacity 1 → 0)
+      //   ④ boot-hidden flickers the tiny center square out; user-collapsed
+      //      panels keep that square visible as the reopen target.
       animate(openRef.current, {
         p: 1,
         duration: 350,
@@ -207,6 +230,11 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
           }),
         )
         .then(() => {
+          if (isCollapsed) {
+            panel.style.opacity = "1"
+            applyShape(0)
+            return
+          }
           animate(panel, {
             opacity: [1, 0.7, 0.1, 0.4, 0],
             duration: 150,
@@ -214,7 +242,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
           })
         })
     }
-  }, [state, size.width, size.height, layerDelay, cornerSize, sizeRef])
+  }, [state, isCollapsed, size.width, size.height, layerDelay, cornerSize, sizeRef])
 
   // Flicker the panel's content (non-SVG children) on visible/hidden transitions.
   // steps(5) gives the retro CRT-flicker feel from the source library's
@@ -228,7 +256,8 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
       (c): c is HTMLElement =>
         c instanceof HTMLElement &&
         !c.classList.contains("futuristic-panel") &&
-        !c.classList.contains("fp-scan-beam"),
+        !c.classList.contains("fp-scan-beam") &&
+        !c.classList.contains("fp-corner-toggle"),
     )
     if (targets.length === 0) return
 
@@ -248,7 +277,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
       return
     }
 
-    if (state === "hidden") {
+    if (state === "hidden" || isCollapsed) {
       if (prev === null) {
         // First render before boot reveal: snap content invisible, don't tween.
         targets.forEach((t) => {
@@ -268,7 +297,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     // normal / hover / selected — ensure content stays fully visible. Brief
     // settle in case a prior visible/hidden tween was interrupted mid-flicker.
     animate(targets, { opacity: 1, duration: 100, ease: "linear" })
-  }, [state, layerDelay, sizeRef])
+  }, [state, isCollapsed, layerDelay, sizeRef])
 
   const wrapperStyle: CSSProperties = useMemo(
     () => ({
@@ -286,6 +315,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
       className={["futuristic-panel", className].filter(Boolean).join(" ")}
       style={wrapperStyle}
       data-fp-state={state}
+      data-fp-collapsed={isCollapsed ? "true" : undefined}
     >
       {!disableBorder && size.width > 0 && (
         <Border
@@ -310,8 +340,34 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
           corners={corners}
         />
       )}
+      {!disableCorner && size.width > 0 && corners.includes("lt") && (
+        <button
+          className="fp-corner-toggle fp-corner-toggle-lt"
+          type="button"
+          data-corner-toggle="lt"
+          aria-label={isCollapsed ? "Expand panel" : "Collapse panel"}
+          aria-pressed={isCollapsed}
+          onClick={(event) => {
+            event.stopPropagation()
+            setCollapsed((value) => !value)
+          }}
+        />
+      )}
+      {!disableCorner && size.width > 0 && corners.includes("rb") && (
+        <button
+          className="fp-corner-toggle fp-corner-toggle-rb"
+          type="button"
+          data-corner-toggle="rb"
+          aria-label={isCollapsed ? "Expand panel" : "Collapse panel"}
+          aria-pressed={isCollapsed}
+          onClick={(event) => {
+            event.stopPropagation()
+            setCollapsed((value) => !value)
+          }}
+        />
+      )}
       {label && <span className="fp-label" aria-hidden>{label}</span>}
-      {scanning && state !== "hidden" && <span className="fp-scan-beam" aria-hidden />}
+      {scanning && state !== "hidden" && !isCollapsed && <span className="fp-scan-beam" aria-hidden />}
       {children}
     </div>
   )

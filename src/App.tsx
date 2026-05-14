@@ -3,6 +3,8 @@ import type { CSSProperties } from "react"
 import { animate, utils } from "animejs"
 import {
   ArrowRight,
+  Maximize2,
+  Minimize2,
   X,
   RotateCw,
 } from "lucide-react"
@@ -162,7 +164,7 @@ function TransactionRow({
   )
 }
 
-function FocusTelemetry({ transaction }: { transaction: Transaction }) {
+function FocusTelemetry({ transaction, forceCollapsed }: { transaction: Transaction; forceCollapsed?: boolean }) {
   const stablePoint = transaction.source.chain ? transaction.source : transaction.target.chain ? transaction.target : null
   const stableLabel = stablePoint ? `${stablePoint.currency}/${stablePoint.chain}` : "FIAT"
   const directionLabel = transaction.direction === "on-ramp" ? "DEPOSIT" : "WITHDRAW"
@@ -182,6 +184,7 @@ function FocusTelemetry({ transaction }: { transaction: Transaction }) {
       revealDelay={120}
       label="FS-FOCUS // TX"
       cornerSize={8}
+      forceCollapsed={forceCollapsed}
       aria-label="Focused transaction telemetry"
     >
       <div className="focus-telemetry-header">
@@ -206,6 +209,25 @@ function ReplayButton() {
   return (
     <button className="boot-replay" onClick={replay} aria-label="Replay HUD boot sequence">
       <RotateCw size={12} />
+    </button>
+  )
+}
+
+function PanelCollapseButton({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      className="panel-collapse-toggle"
+      onClick={onToggle}
+      aria-label={collapsed ? "Expand all information panels" : "Collapse all information panels"}
+      type="button"
+    >
+      {collapsed ? <Maximize2 size={12} /> : <Minimize2 size={12} />}
     </button>
   )
 }
@@ -322,6 +344,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
   const [selectedId, setSelectedId] = useState(baseTransactions[0].id)
   const [mode, setMode] = useState<Mode>("monitor")
   const [routesReady, setRoutesReady] = useState(false)
+  const [cardsCollapsed, setCardsCollapsed] = useState(false)
   const live = useLiveDashboard({
     maxTransactions: globeSettings.transactionBufferSize,
     streamIntervalMs: globeSettings.streamIntervalMs,
@@ -393,16 +416,15 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         )}
 
         {/* HUD: Top-left system status */}
-        <FuturisticPanel className="hud-panel panel-system" revealDelay={0} label="FS-00 // CORE">
+        <FuturisticPanel className="hud-panel panel-system" revealDelay={0} label="FS-00 // CORE" forceCollapsed={cardsCollapsed}>
           <div className="live-dot" />
           <div className="system-text">
             <strong>OWLPAY</strong> · Global rails online · {live.railUptime.toFixed(2)}%
           </div>
-          <ReplayButton />
         </FuturisticPanel>
 
         {/* HUD: Top-right operations status */}
-        <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01 // OPS">
+        <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01 // OPS" forceCollapsed={cardsCollapsed}>
           {[
             ["KYT", `${live.transactions.filter((tx) => tx.riskScore >= 30 || tx.status === "failed").length} watch`],
             ["LIQ", `${Math.max(...live.pools.map((pool) => pool.utilization))}% peak`],
@@ -416,7 +438,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         </FuturisticPanel>
 
         {/* HUD: Left metrics */}
-        <FuturisticPanel className="hud-panel panel-metrics" revealDelay={200} label="FS-02 // LOAD">
+        <FuturisticPanel className="hud-panel panel-metrics" revealDelay={200} label="FS-02 // LOAD" forceCollapsed={cardsCollapsed}>
           <div className="hud-label">Network Load</div>
           <div className="metric-item">
             <div className="metric-val">{formatCompactMoney(live.volume24h)}</div>
@@ -427,7 +449,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         </FuturisticPanel>
 
         {/* HUD: Left-bottom liquidity */}
-        <FuturisticPanel className="hud-panel panel-liquidity" revealDelay={280} label="FS-03 // LIQ">
+        <FuturisticPanel className="hud-panel panel-liquidity" revealDelay={280} label="FS-03 // LIQ" forceCollapsed={cardsCollapsed}>
           <div className="hud-label">Liquidity Pools</div>
           {live.pools.map((pool) => (
             <div className="pool-item" key={pool.name}>
@@ -443,7 +465,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         </FuturisticPanel>
 
         {/* HUD: Right transaction queue */}
-        <FuturisticPanel className="hud-panel panel-transactions" revealDelay={360} label="FS-04 // QUEUE">
+        <FuturisticPanel className="hud-panel panel-transactions" revealDelay={360} label="FS-04 // QUEUE" forceCollapsed={cardsCollapsed}>
           <div className="hud-label">Transaction Queue</div>
           <div className="tx-list-scroll">
             {live.transactions.slice(0, globeSettings.transactionListSize).map((tx, i) => (
@@ -458,7 +480,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
           </div>
         </FuturisticPanel>
 
-        {mode === "focus" && <FocusTelemetry key={selected.id} transaction={selected} />}
+        {mode === "focus" && <FocusTelemetry key={selected.id} transaction={selected} forceCollapsed={cardsCollapsed} />}
 
         {/* HUD: Bottom detail bar */}
         <FuturisticPanel
@@ -466,6 +488,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
           revealDelay={450}
           label="FS-05 // TRACK"
           scanning
+          forceCollapsed={cardsCollapsed}
         >
           <div className="detail-route">
             <div className="detail-from-to">
@@ -498,6 +521,9 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
             </div>
           </div>
         </FuturisticPanel>
+
+        <ReplayButton />
+        <PanelCollapseButton collapsed={cardsCollapsed} onToggle={() => setCardsCollapsed((value) => !value)} />
 
       </main>
     </FuturisticPanelProvider>

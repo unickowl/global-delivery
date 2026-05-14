@@ -13,6 +13,9 @@
   --label-color: rgba(173, 250, 255, 0.74);
   --text-dim: rgba(207, 250, 255, 0.82);
   --text-bright: #e8fbff;
+  --scrollbar-track: rgba(4, 16, 28, 0.72);
+  --scrollbar-thumb: rgba(125, 246, 255, 0.38);
+  --scrollbar-thumb-hover: rgba(125, 246, 255, 0.72);
 
   --font-console: "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
   --font-boot: "Sometype Mono", "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
@@ -27,6 +30,37 @@
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; min-height: 100vh; overflow: hidden; }
 button { font: inherit; border: none; background: none; cursor: pointer; }
+
+* {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background:
+    linear-gradient(180deg, transparent, rgba(125, 246, 255, 0.1), transparent),
+    var(--scrollbar-track);
+  border-left: 1px solid rgba(125, 246, 255, 0.1);
+}
+
+*::-webkit-scrollbar-thumb {
+  background:
+    linear-gradient(180deg, rgba(232, 251, 255, 0.28), transparent 18% 82%, rgba(232, 251, 255, 0.2)),
+    var(--scrollbar-thumb);
+  border: 1px solid rgba(125, 246, 255, 0.26);
+  box-shadow: 0 0 12px rgba(125, 246, 255, 0.22);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(180deg, rgba(232, 251, 255, 0.38), transparent 18% 82%, rgba(232, 251, 255, 0.24)),
+    var(--scrollbar-thumb-hover);
+}
 
 /* ===== Section 1b — Startup Gate ===== */
 .startup-shell {
@@ -459,6 +493,66 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   inset: auto;
 }
 
+.futuristic-panel > .fp-corner-toggle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  padding: 0;
+  background: transparent;
+  opacity: 0;
+  pointer-events: auto;
+}
+
+.futuristic-panel > .fp-corner-toggle-lt {
+  cursor: nwse-resize;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+.futuristic-panel > .fp-corner-toggle-rb {
+  cursor: nwse-resize;
+  clip-path: polygon(100% 100%, 0 100%, 100% 0);
+}
+
+.futuristic-panel > .fp-corner-toggle:focus-visible {
+  opacity: 1;
+  outline: none;
+  background: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 34%, transparent);
+  filter: drop-shadow(0 0 8px var(--fp-accent, var(--hud-cyan)));
+}
+
+.futuristic-panel[data-fp-collapsed="true"] {
+  min-width: 0;
+  min-height: 0;
+}
+
+.futuristic-panel[data-fp-collapsed="true"]::before {
+  opacity: 0.28;
+  background:
+    linear-gradient(135deg, var(--fp-accent, var(--hud-cyan)) 0 49%, transparent 50%),
+    linear-gradient(315deg, var(--fp-accent, var(--hud-cyan)) 0 49%, transparent 50%);
+  filter: drop-shadow(0 0 10px var(--fp-accent, var(--hud-cyan)));
+}
+
+.futuristic-panel[data-fp-collapsed="true"]::after {
+  opacity: 0;
+}
+
+.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle {
+  opacity: 1;
+  background:
+    linear-gradient(135deg, rgba(232, 251, 255, 0.22), transparent 42%),
+    color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 42%, rgba(4, 10, 18, 0.86));
+  border: 1px solid color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 74%, transparent);
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 36%, transparent),
+    inset 0 0 10px rgba(232, 251, 255, 0.08);
+}
+
+.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle:hover {
+  filter: brightness(1.28) drop-shadow(0 0 8px var(--fp-accent, var(--hud-cyan)));
+}
+
 /* Glitch layer — duplicates the grain with a slight horizontal offset and
    blue-shifted hue, flashing at irregular intervals to simulate chromatic
    aberration / RGB split. Cheap: GPU-composited transform + opacity, no
@@ -616,22 +710,51 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 }
 
 .boot-replay {
+  position: fixed;
+  left: 54px;
+  bottom: 16px;
+  z-index: 2000;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  margin-left: auto;
+  width: 30px;
+  height: 30px;
   color: var(--label-color);
   border: 1px solid rgba(125, 246, 255, 0.18);
-  background: rgba(125, 246, 255, 0.04);
-  transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  transition: color 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
 }
 
 .boot-replay:hover {
   color: var(--hud-cyan);
   border-color: rgba(125, 246, 255, 0.45);
   background: rgba(125, 246, 255, 0.1);
+  box-shadow: 0 0 12px rgba(125, 246, 255, 0.14);
+}
+
+.panel-collapse-toggle {
+  position: fixed;
+  left: 92px;
+  bottom: 16px;
+  z-index: 2000;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  color: var(--label-color);
+  border: 1px solid rgba(125, 246, 255, 0.18);
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  transition: color 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.panel-collapse-toggle:hover {
+  color: var(--hud-cyan);
+  border-color: rgba(125, 246, 255, 0.45);
+  background: rgba(125, 246, 255, 0.1);
+  box-shadow: 0 0 12px rgba(125, 246, 255, 0.14);
 }
 
 .hud-label {
@@ -728,14 +851,8 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 .tx-list-scroll {
   max-height: calc(100vh - 250px);
   margin-top: 8px;
-  padding-right: 2px;
+  padding-right: 8px;
   overflow-y: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.tx-list-scroll::-webkit-scrollbar {
-  display: none;
 }
 
 .panel-detail {
@@ -1263,7 +1380,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 /* ===== Section 10 — Globe Settings ===== */
 .globe-settings {
   position: fixed;
-  bottom: 46px;
+  bottom: 16px;
   left: 16px;
   z-index: 2000;
 }
@@ -1294,7 +1411,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   width: 240px;
   max-height: min(70vh, 680px);
   overflow-y: auto;
-  padding: 18px 14px 14px 18px;
+  padding: 18px 10px 14px 18px;
   border: 1px solid var(--panel-border);
   background: var(--panel-bg);
   backdrop-filter: blur(16px);
