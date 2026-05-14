@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Sometype+Mono:wght@400;500;600;700&display=swap");
+
 /* ===== Section 1 — Root & Reset ===== */
 :root {
   /* MAGI palette */
@@ -12,7 +14,10 @@
   --text-dim: rgba(207, 250, 255, 0.82);
   --text-bright: #e8fbff;
 
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  --font-console: "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
+  --font-boot: "Sometype Mono", "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  font-family: var(--font-console);
   color: var(--text-bright);
   background: var(--hud-bg);
   font-synthesis: none;
@@ -741,32 +746,108 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   min-width: 420px;
   padding: 12px 20px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
   overflow: hidden;
 }
 
-.detail-clear-focus {
+.globe-control-strip {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  z-index: 18;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px;
+  background:
+    linear-gradient(90deg, rgba(255, 30, 24, 0.16), rgba(22, 4, 6, 0.78) 28% 72%, rgba(255, 30, 24, 0.14)),
+    rgba(10, 2, 5, 0.84);
+  border: 1px solid rgba(255, 50, 44, 0.54);
+  box-shadow:
+    0 0 28px rgba(255, 28, 20, 0.22),
+    inset 0 0 22px rgba(255, 34, 26, 0.08);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+  animation: globe-control-in 320ms steps(5) both, globe-control-alert 2.4s ease-in-out infinite;
+}
+
+.globe-control-strip::before,
+.globe-control-strip::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.globe-control-strip::before {
+  inset: 3px;
+  border-top: 1px solid rgba(255, 126, 110, 0.42);
+  border-bottom: 1px solid rgba(255, 126, 110, 0.18);
+  opacity: 0.8;
+}
+
+.globe-control-strip::after {
+  top: 0;
+  bottom: 0;
+  width: 38px;
+  left: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 76, 62, 0.45), transparent);
+  mix-blend-mode: screen;
+  animation: globe-control-scan 1.8s linear infinite;
+}
+
+.globe-control-button {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  justify-self: end;
-  color: rgba(207, 250, 255, 0.74);
+  justify-content: center;
+  gap: 7px;
+  min-height: 28px;
+  color: #ffe5df;
   font-size: 11px;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  padding: 3px 6px;
-  border: 1px solid rgba(125, 246, 255, 0.18);
-  background: rgba(5, 18, 38, 0.62);
-  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 79, 67, 0.62);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 54, 42, 0.12) 0 1px, transparent 1px 5px),
+    rgba(58, 5, 8, 0.78);
+  box-shadow: inset 0 0 14px rgba(255, 42, 32, 0.14);
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
   white-space: nowrap;
 }
 
-.detail-clear-focus:hover {
-  color: var(--text-bright);
-  border-color: rgba(125, 246, 255, 0.45);
-  background: rgba(9, 32, 58, 0.78);
+.globe-control-button:hover {
+  color: #fff8f4;
+  border-color: rgba(255, 158, 136, 0.86);
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 86, 68, 0.18) 0 1px, transparent 1px 5px),
+    rgba(86, 8, 10, 0.9);
+  box-shadow: 0 0 22px rgba(255, 36, 28, 0.32), inset 0 0 18px rgba(255, 68, 54, 0.2);
+}
+
+@keyframes globe-control-in {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+  40% { opacity: 0.85; transform: translateX(-50%) translateY(1px); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes globe-control-alert {
+  0%, 100% { filter: brightness(1); }
+  48% { filter: brightness(1.16); }
+  52% { filter: brightness(0.92); }
+  58% { filter: brightness(1.08); }
+}
+
+@keyframes globe-control-scan {
+  0% { transform: translateX(-42px); opacity: 0; }
+  12% { opacity: 0.65; }
+  78% { opacity: 0.28; }
+  100% { transform: translateX(220px); opacity: 0; }
 }
 
 /* ===== Section 6 — Component Styles ===== */
@@ -1421,6 +1502,9 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 
 /* ===== Section 11 — Responsive Breakpoints ===== */
 @media (max-width: 1120px) {
+  .globe-control-strip {
+    top: 72px;
+  }
   .panel-transactions { top: auto; bottom: 70px; right: 16px; max-height: 40vh; overflow-y: auto; }
   .panel-metrics { width: 130px; }
   .panel-liquidity { width: 130px; }
@@ -1433,9 +1517,6 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   .detail-stats {
     justify-content: flex-start;
     max-width: none;
-  }
-  .detail-clear-focus {
-    justify-self: start;
   }
   .focus-telemetry {
     width: calc(100% - 32px);
@@ -1473,7 +1554,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   flex-direction: column;
   gap: 22px;
   overflow: hidden;
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-family: var(--font-boot);
   animation: lb-flicker 5.4s steps(1) infinite;
 }
 
@@ -1665,12 +1746,21 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   line-height: 1.75;
   color: rgba(207, 250, 255, 0.85);
   white-space: nowrap;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   text-shadow:
     0.6px 0 rgba(255, 74, 58, 0.32),
     -0.6px 0 rgba(125, 246, 255, 0.4),
     0 0 6px rgba(125, 246, 255, 0.18);
   animation: lb-aberrate 4800ms steps(1) infinite;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, black 7%, black 96%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, black 7%, black 96%, transparent 100%);
+}
+
+.lb-log::-webkit-scrollbar {
+  display: none;
 }
 
 @keyframes lb-aberrate {
@@ -1787,11 +1877,13 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: flex-end;
+  gap: 3px;
   overflow: hidden;
   color: rgba(125, 246, 255, 0.6);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0, black 16%, black 88%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 0, black 16%, black 88%, transparent 100%);
+  line-height: 1.48;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, black 9%, black 92%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0, black 9%, black 92%, transparent 100%);
 }
 
 .lb-hex-line {
@@ -1865,5 +1957,3 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 .lb-footer-rev {
   text-align: right;
 }
-
-

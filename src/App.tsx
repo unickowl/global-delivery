@@ -383,6 +383,15 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
           />
         </div>
 
+        {mode === "focus" && (
+          <div className="globe-control-strip" aria-label="Globe view controls">
+            <button className="globe-control-button" type="button" onClick={clearFocus} aria-label="Return to live monitor">
+              <X size={13} />
+              <span>Live monitor</span>
+            </button>
+          </div>
+        )}
+
         {/* HUD: Top-left system status */}
         <FuturisticPanel className="hud-panel panel-system" revealDelay={0} label="FS-00 // CORE">
           <div className="live-dot" />
@@ -488,12 +497,6 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
               <span className="ds-val" style={{ color: selected.riskScore < 30 ? "var(--hud-green)" : "var(--hud-yellow)" }}><ScrambleText value={selected.riskScore} /></span>
             </div>
           </div>
-          {mode === "focus" && (
-            <button className="detail-clear-focus" type="button" onClick={clearFocus} aria-label="Return to monitor mode">
-              <X size={12} />
-              <span>Monitor</span>
-            </button>
-          )}
         </FuturisticPanel>
 
       </main>

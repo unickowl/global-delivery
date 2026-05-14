@@ -39,6 +39,16 @@ const FILLER_POOL: LogLine[] = [
   { tag: "SYNC", msg: "MERKLE proof recompute batch", detail: "▓▓▓▓▓▓▓░ 84%" },
   { tag: "WAIT", msg: "PAUSE  liquidity rebalance check", detail: "—" },
   { tag: "WAIT", msg: "RETRY  oauth refresh fastlane", detail: "expires 22s" },
+  { tag: "WAIT", msg: "COFFEE bloom timer adjusted", detail: "v60 +15g" },
+  { tag: "WAIT", msg: "INBOX  marking newsletter unread", detail: "later" },
+  { tag: "SYNC", msg: "DESK   aligning mechanical keyboard", detail: "1 key off" },
+  { tag: "WAIT", msg: "CACHE  reheating yesterday's espresso", detail: "questionable" },
+  { tag: "WAIT", msg: "STATUS pretending to read incident doc", detail: "page 3/47" },
+  { tag: "SYNC", msg: "NOTION moving TODO to tomorrow", detail: "again" },
+  { tag: "WAIT", msg: "SLACK  typing then deleting reply", detail: "3 times" },
+  { tag: "WAIT", msg: "CHAIR  recalibrating posture daemon", detail: "failed" },
+  { tag: "SYNC", msg: "TABS   closing duplicate dashboards", detail: "17 left" },
+  { tag: "WAIT", msg: "LUNCH  debating noodles vs deploy", detail: "no quorum" },
 ]
 
 const HEX_POOL = [
@@ -51,6 +61,9 @@ const HEX_POOL = [
   "8A41  →  DUBAI",
   "1C5E  →  SYDNEY",
 ]
+
+const MAX_HEX_LINES = 34
+const MAX_FILLER_LINES = 80
 
 export type TerminalBootProps = {
   onComplete?: () => void
@@ -79,6 +92,7 @@ export function TerminalBoot({
 }: TerminalBootProps) {
   const startedAtRef = useRef(Date.now())
   const fillerCursorRef = useRef(0)
+  const logRef = useRef<HTMLDivElement>(null)
   const [revealedCore, setRevealedCore] = useState(0)
   const [filler, setFiller] = useState<LogLine[]>([])
   const [hexLines, setHexLines] = useState<string[]>([])
@@ -125,7 +139,10 @@ export function TerminalBoot({
     const emit = () => {
       const next = FILLER_POOL[fillerCursorRef.current % FILLER_POOL.length]
       fillerCursorRef.current += 1
-      setFiller((f) => [...f, next])
+      setFiller((f) => {
+        const lines = [...f, next]
+        return lines.length > MAX_FILLER_LINES ? lines.slice(lines.length - MAX_FILLER_LINES) : lines
+      })
     }
 
     const schedule = (delay: number) => {
@@ -147,6 +164,12 @@ export function TerminalBoot({
     }
   }, [revealedCore, finalShown, stallThresholdMs, fillerLineMs])
 
+  useEffect(() => {
+    const log = logRef.current
+    if (!log) return
+    log.scrollTop = log.scrollHeight
+  }, [revealedCore, filler.length, finalShown])
+
   // After MONITOR ONLINE renders: settle pause → glitch exit → notify caller.
   useEffect(() => {
     if (!finalShown) return
@@ -167,7 +190,7 @@ export function TerminalBoot({
     const id = window.setInterval(() => {
       setHexLines((h) => {
         const next = [...h, HEX_POOL[i % HEX_POOL.length]]
-        return next.length > 12 ? next.slice(next.length - 12) : next
+        return next.length > MAX_HEX_LINES ? next.slice(next.length - MAX_HEX_LINES) : next
       })
       i += 1
     }, hexIntervalMs)
@@ -201,7 +224,7 @@ export function TerminalBoot({
         <span className="lb-host">monitor@global-rails:~$ ./boot --mode=fullscan</span>
       </header>
       <div className="lb-cols">
-        <div className="lb-log">
+        <div ref={logRef} className="lb-log">
           {CORE_LINES.slice(0, revealedCore).map((line, i) => (
             <LineRow key={`core-${i}`} line={line} />
           ))}

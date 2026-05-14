@@ -946,19 +946,19 @@ function drawFlightScene(
   ctx.restore()
 
   ctx.fillStyle = `rgba(255,206,200,${0.75 + arrival * 0.25})`
-  ctx.font = "800 14px 'JetBrains Mono', monospace"
+  ctx.font = "800 14px 'IBM Plex Mono', 'JetBrains Mono', monospace"
   ctx.textAlign = "center"
   ctx.fillText(selected.target.city.toUpperCase(), cx, cy - 50 - arrival * 20)
   ctx.fillStyle = "rgba(255,150,130,0.55)"
-  ctx.font = "500 11px 'JetBrains Mono', monospace"
+  ctx.font = "500 11px 'IBM Plex Mono', 'JetBrains Mono', monospace"
   ctx.fillText(`${Math.round(progress * 100)}% ROUTE TRAVERSED`, cx, height - 50)
 
   if (success > 0) {
     ctx.fillStyle = `rgba(74,222,128,${success})`
-    ctx.font = "800 28px 'JetBrains Mono', monospace"
+    ctx.font = "800 28px 'IBM Plex Mono', 'JetBrains Mono', monospace"
     ctx.fillText("SETTLEMENT CONFIRMED", cx, cy + 80)
     ctx.fillStyle = `rgba(74,222,128,${success * 0.7})`
-    ctx.font = "700 18px 'JetBrains Mono', monospace"
+    ctx.font = "700 18px 'IBM Plex Mono', 'JetBrains Mono', monospace"
     ctx.fillText("決済完了", cx, cy + 110)
   }
 }
