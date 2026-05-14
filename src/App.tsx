@@ -219,6 +219,15 @@ function FocusTelemetry({ transaction, forceCollapsed }: { transaction: Transact
   )
 }
 
+function PanelLoading({ label = "loading new data" }: { label?: string }) {
+  return (
+    <div className="panel-data-loading" aria-live="polite">
+      <span>{label}</span>
+      <i />
+    </div>
+  )
+}
+
 type VolumePoint = {
   label: string
   deposit: number
@@ -502,7 +511,8 @@ export const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
   drawDuration: 2200,
   smallAnimate: true,
   largeThreshold: 750000,
-  flowCount: 300,
+  flowCount: 160,
+  renderFlowCap: 160,
   normalLineWidth: 1,
   normalGlow: 1,
   normalHighlight: 1,
@@ -512,17 +522,17 @@ export const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
   largeGlow: 1,
   largeDotScale: 1,
   largeFlightSpeed: 1,
-  transactionBufferSize: 300,
-  transactionListSize: 15,
+  transactionBufferSize: 200,
+  transactionListSize: 10,
   streamIntervalMs: 1400,
   surfaceBrightness: 1.05,
   landBrightness: 0.75,
   grainEnabled: true,
-  grainOpacity: 0.17,
+  grainOpacity: 0.1,
   grainScale: 1.10,
-  grainSpeed: 0.20,
-  grainGlitch: true,
-  grainGlitchStrength: 0.05,
+  grainSpeed: 0.08,
+  grainGlitch: false,
+  grainGlitchStrength: 0.03,
 }
 
 function buildGrainUrl(scale: number) {
@@ -536,11 +546,11 @@ function buildGrainUrl(scale: number) {
 }
 
 function grainCssVars(settings: GlobeSettingsState): CSSProperties {
-  const speed = Math.max(settings.grainSpeed, 0.0001)
-  const glitchOn = settings.grainEnabled && settings.grainGlitch
+  const speed = Math.max(Math.min(settings.grainSpeed, 0.08), 0.0001)
+  const glitchOn = false
   return {
     ["--fp-grain-image" as string]: buildGrainUrl(settings.grainScale),
-    ["--fp-grain-opacity" as string]: settings.grainEnabled ? settings.grainOpacity : 0,
+    ["--fp-grain-opacity" as string]: settings.grainEnabled ? Math.min(settings.grainOpacity, 0.1) : 0,
     ["--fp-grain-duration" as string]: `${Math.round(1200 / speed)}ms`,
     ["--fp-grain-play" as string]: settings.grainSpeed <= 0 ? "paused" : "running",
     ["--fp-glitch-strength" as string]: glitchOn ? settings.grainGlitchStrength : 0,
@@ -616,6 +626,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
             flightStartedAt={null}
             onFlightDone={() => undefined}
             globeSettings={globeSettings}
+            fullPerformance={cardsCollapsed}
             phiRef={phiRef}
             thetaRef={thetaRef}
           />
@@ -689,18 +700,24 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
 
         {/* HUD: Right transaction queue */}
         <FuturisticPanel className="hud-panel panel-transactions" revealDelay={360} label="FS-04 // QUEUE" forceCollapsed={cardsCollapsed}>
-          <div className="hud-label">Transaction Queue</div>
-          <div className="tx-list-scroll">
-            {live.transactions.slice(0, globeSettings.transactionListSize).map((tx, i) => (
-              <TransactionRow
-                key={tx.id}
-                transaction={tx}
-                active={tx.id === selected.id}
-                onClick={() => focusTransaction(tx)}
-                revealDelay={500 + i * 60}
-              />
-            ))}
-          </div>
+          {({ active, loading }) => (
+            loading ? <PanelLoading label="syncing queue" /> : active ? (
+              <>
+                <div className="hud-label">Transaction Queue</div>
+                <div className="tx-list-scroll">
+                  {live.transactions.slice(0, globeSettings.transactionListSize).map((tx, i) => (
+                    <TransactionRow
+                      key={tx.id}
+                      transaction={tx}
+                      active={tx.id === selected.id}
+                      onClick={() => focusTransaction(tx)}
+                      revealDelay={120 + i * 40}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : null
+          )}
         </FuturisticPanel>
 
         {mode === "focus" && <FocusTelemetry key={selected.id} transaction={selected} forceCollapsed={cardsCollapsed} />}
@@ -708,13 +725,13 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         {mode === "monitor" && (
           <div className="dashboard-rail" aria-label="Operational dashboard charts">
             <FuturisticPanel className="hud-panel panel-dashboard-card panel-flow-health" revealDelay={520} label="FS-06 // HEALTH" forceCollapsed={cardsCollapsed}>
-              <FlowHealthCard transactions={live.transactions} medianSettlementSeconds={live.medianSettlementSeconds} />
+              {({ active, loading }) => loading ? <PanelLoading label="loading health" /> : active ? <FlowHealthCard transactions={live.transactions} medianSettlementSeconds={live.medianSettlementSeconds} /> : null}
             </FuturisticPanel>
             <FuturisticPanel className="hud-panel panel-dashboard-card panel-live-volume" revealDelay={600} label="FS-07 // VOLUME" forceCollapsed={cardsCollapsed} scanning>
-              <LiveVolumeCard series={dashboardMetrics.volumeSeries} volume24h={live.volume24h} />
+              {({ active, loading }) => loading ? <PanelLoading label="loading volume" /> : active ? <LiveVolumeCard series={dashboardMetrics.volumeSeries} volume24h={live.volume24h} /> : null}
             </FuturisticPanel>
             <FuturisticPanel className="hud-panel panel-dashboard-card panel-chain-mix" revealDelay={680} label="FS-08 // MIX" forceCollapsed={cardsCollapsed}>
-              <ChainAssetMixCard chains={dashboardMetrics.chainMix} assets={dashboardMetrics.assetMix} />
+              {({ active, loading }) => loading ? <PanelLoading label="loading mix" /> : active ? <ChainAssetMixCard chains={dashboardMetrics.chainMix} assets={dashboardMetrics.assetMix} /> : null}
             </FuturisticPanel>
           </div>
         )}
@@ -727,36 +744,40 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
           scanning
           forceCollapsed={cardsCollapsed}
         >
-          <div className="detail-route">
-            <div className="detail-from-to">
-              <span><ScrambleText value={selected.source.city} /></span>
-              <ArrowRight size={14} />
-              <span><ScrambleText value={selected.target.city} /></span>
-            </div>
-            <div className="detail-amounts">
-              <span><ScrambleText value={formatMoney(selected.source.amount, selected.source.currency)} /></span>
-              <span className="detail-arrow">→</span>
-              <span><ScrambleText value={formatMoney(selected.target.amount, selected.target.currency)} /></span>
-            </div>
-          </div>
-          <div className="detail-stats">
-            <div className="detail-stat">
-              <span className="ds-label">FX</span>
-              <span className="ds-val"><ScrambleText value={selected.exchangeRate} /></span>
-            </div>
-            <div className="detail-stat">
-              <span className="ds-label">FEE</span>
-              <span className="ds-val"><ScrambleText value={formatMoney(selected.fee, "USD")} /></span>
-            </div>
-            <div className="detail-stat">
-              <span className="ds-label">RAIL</span>
-              <span className="ds-val"><ScrambleText value={selected.rail} /></span>
-            </div>
-            <div className="detail-stat">
-              <span className="ds-label">RISK</span>
-              <span className="ds-val" style={{ color: selected.riskScore < 30 ? "var(--hud-green)" : "var(--hud-yellow)" }}><ScrambleText value={selected.riskScore} /></span>
-            </div>
-          </div>
+          {({ active, loading }) => loading ? <PanelLoading label="loading track" /> : active ? (
+            <>
+              <div className="detail-route">
+                <div className="detail-from-to">
+                  <span><ScrambleText value={selected.source.city} /></span>
+                  <ArrowRight size={14} />
+                  <span><ScrambleText value={selected.target.city} /></span>
+                </div>
+                <div className="detail-amounts">
+                  <span><ScrambleText value={formatMoney(selected.source.amount, selected.source.currency)} /></span>
+                  <span className="detail-arrow">→</span>
+                  <span><ScrambleText value={formatMoney(selected.target.amount, selected.target.currency)} /></span>
+                </div>
+              </div>
+              <div className="detail-stats">
+                <div className="detail-stat">
+                  <span className="ds-label">FX</span>
+                  <span className="ds-val"><ScrambleText value={selected.exchangeRate} /></span>
+                </div>
+                <div className="detail-stat">
+                  <span className="ds-label">FEE</span>
+                  <span className="ds-val"><ScrambleText value={formatMoney(selected.fee, "USD")} /></span>
+                </div>
+                <div className="detail-stat">
+                  <span className="ds-label">RAIL</span>
+                  <span className="ds-val"><ScrambleText value={selected.rail} /></span>
+                </div>
+                <div className="detail-stat">
+                  <span className="ds-label">RISK</span>
+                  <span className="ds-val" style={{ color: selected.riskScore < 30 ? "var(--hud-green)" : "var(--hud-yellow)" }}><ScrambleText value={selected.riskScore} /></span>
+                </div>
+              </div>
+            </>
+          ) : null}
         </FuturisticPanel>
 
         <ReplayButton onReplay={resetGlobeView} />

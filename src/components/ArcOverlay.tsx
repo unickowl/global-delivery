@@ -13,6 +13,7 @@ export type GlobeSettingsState = {
   smallAnimate: boolean
   largeThreshold: number
   flowCount: number
+  renderFlowCap: number
   normalLineWidth: number
   normalGlow: number
   normalHighlight: number

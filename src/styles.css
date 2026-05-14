@@ -874,6 +874,48 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   overflow-y: auto;
 }
 
+.panel-data-loading {
+  min-height: 72px;
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  color: var(--label-color);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.panel-data-loading span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-data-loading i {
+  position: relative;
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  background: rgba(125, 246, 255, 0.08);
+  border: 1px solid rgba(125, 246, 255, 0.14);
+}
+
+.panel-data-loading i::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, var(--hud-cyan), transparent);
+  box-shadow: 0 0 12px rgba(125, 246, 255, 0.42);
+  animation: panel-data-loading-scan 760ms steps(8) infinite;
+}
+
+@keyframes panel-data-loading-scan {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(280%); }
+}
+
 .panel-detail {
   bottom: 16px;
   left: 50%;

@@ -19,6 +19,7 @@ type ThreeGlobeCanvasProps = {
   flightStartedAt: number | null
   onFlightDone: () => void
   globeSettings: GlobeSettingsState
+  fullPerformance: boolean
   phiRef: MutableRefObject<number>
   thetaRef: MutableRefObject<number>
 }
@@ -61,6 +62,12 @@ const FOCUS_SOURCE_MS = 1600
 const FOCUS_LABEL_MS = 1200
 const FOCUS_FLIGHT_MS = 5600
 const FOCUS_TARGET_MS = 1600
+const MONITOR_FRAME_MS = 1000 / 45
+const INTERACTIVE_FRAME_MS = 1000 / 60
+const FULL_PERFORMANCE_FRAME_MS = 1000 / 60
+const GEOMETRY_UPDATE_MS = 360
+const GEOMETRY_UPDATE_DRAG_MS = 520
+const FULL_PERFORMANCE_GEOMETRY_UPDATE_MS = 120
 const EMPTY_SEGMENTS = new Float32Array()
 const CAMERA_CORRIDOR_MAX_Y = 0.52
 const MAX_VIEW_THETA = Math.PI / 2 - 0.04
@@ -533,6 +540,7 @@ function startFlowAnimation(flow: FlowTx, settings: GlobeSettingsState) {
                     duration: LANDING_MS,
                     ease: "outCubic",
                     onComplete: () => {
+                      flow.isLarge = false
                       flow.phase = "breathing"
                       flow.phaseStartedAt = performance.now()
                       startBreathingAnimation(flow)
@@ -568,8 +576,20 @@ function startFlowAnimation(flow: FlowTx, settings: GlobeSettingsState) {
   }
 }
 
+function renderFlowCount(settings: GlobeSettingsState) {
+  return clamp(Math.round(Math.min(settings.flowCount, settings.renderFlowCap ?? settings.flowCount)), 20, MAX_FLOWS)
+}
+
+function effectiveGlobeSettings(settings: GlobeSettingsState, fullPerformance: boolean): GlobeSettingsState {
+  if (!fullPerformance) return settings
+  return {
+    ...settings,
+    renderFlowCap: MAX_FLOWS,
+  }
+}
+
 function updateFlows(now: number, flows: FlowTx[], transactions: Transaction[], settings: GlobeSettingsState, lastAddRef: MutableRefObject<number>) {
-  const targetCount = clamp(Math.round(settings.flowCount), 20, MAX_FLOWS)
+  const targetCount = renderFlowCount(settings)
   const activeTransactions = transactions.slice(0, targetCount)
   const activeIds = new Set(activeTransactions.map((tx) => tx.id))
   const transactionById = new Map(activeTransactions.map((tx) => [tx.id, tx]))
@@ -628,6 +648,7 @@ function updateFlows(now: number, flows: FlowTx[], transactions: Transaction[], 
         tx.flightProgress = 1
       }
     } else if (tx.phase === "landing" && phaseAge >= LANDING_MS) {
+      tx.isLarge = false
       tx.phase = "breathing"
       tx.phaseStartedAt = now
     } else if (tx.phase === "drawing" && phaseAge >= settings.drawDuration) {
@@ -685,7 +706,7 @@ function makeGlobeMaterial() {
 
 function lineSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState, largeOnly: boolean, now: number) {
   const positions: number[] = []
-  const targetCount = clamp(Math.round(settings.flowCount), 20, MAX_FLOWS)
+  const targetCount = renderFlowCount(settings)
   const active = flows.slice(0, targetCount)
 
   for (const flow of active) {
@@ -724,7 +745,7 @@ function shimmerSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState,
   const tailPositions: number[] = []
   const midPositions: number[] = []
   const headPositions: number[] = []
-  const targetCount = clamp(Math.round(settings.flowCount), 20, MAX_FLOWS)
+  const targetCount = renderFlowCount(settings)
   const normalFlowSpeed = settings.normalFlowSpeed ?? 1
   for (const flow of flows.slice(0, targetCount)) {
     if (flow.status === "failed") continue
@@ -761,7 +782,7 @@ function largeTrailSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsSta
 
 function failedSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState, now: number) {
   const positions: number[] = []
-  const targetCount = clamp(Math.round(settings.flowCount), 20, MAX_FLOWS)
+  const targetCount = renderFlowCount(settings)
   for (const flow of flows.slice(0, targetCount)) {
     if (flow.status !== "failed") continue
     const fade = flow.phase === "fading" ? 1 - clamp((now - flow.phaseStartedAt) / FADING_MS, 0, 1) : flow.fadeAlpha
@@ -779,7 +800,7 @@ function failedSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState, 
 
 function seedInitialTransactionFlows(now: number, transactions: Transaction[], settings: GlobeSettingsState) {
   let largeCount = 0
-  return transactions.slice(0, Math.min(MAX_FLOWS, settings.flowCount)).map((transaction, index) => {
+  return transactions.slice(0, renderFlowCount(settings)).map((transaction, index) => {
     const flow = createTransactionFlow(now, transaction, settings, largeCount)
     if (flow.isLarge) largeCount += 1
     const stagger = index * 18 + (hashText(transaction.id) % 260)
@@ -1030,6 +1051,7 @@ export function ThreeGlobeCanvas({
   flightStartedAt,
   onFlightDone,
   globeSettings,
+  fullPerformance,
   phiRef,
   thetaRef,
 }: ThreeGlobeCanvasProps) {
@@ -1038,7 +1060,7 @@ export function ThreeGlobeCanvas({
   const sourceLabelRef = useRef<HTMLDivElement>(null)
   const targetLabelRef = useRef<HTMLDivElement>(null)
   const doneRef = useRef(false)
-  const latestRef = useRef({ transactions, selected, mode, routesReady, flightStartedAt, onFlightDone, globeSettings })
+  const latestRef = useRef({ transactions, selected, mode, routesReady, flightStartedAt, onFlightDone, globeSettings, fullPerformance })
   const dragRef = useRef({ active: false, startX: 0, startY: 0, startPhi: 0, startTheta: 0, velocity: 0, lastX: 0, lastT: 0 })
   const flowsRef = useRef<FlowTx[]>([])
   const routesSeededRef = useRef(false)
@@ -1048,9 +1070,9 @@ export function ThreeGlobeCanvas({
   const landPoints = useMemo(() => createLandPoints(), [])
 
   useEffect(() => {
-    latestRef.current = { transactions, selected, mode, routesReady, flightStartedAt, onFlightDone, globeSettings }
+    latestRef.current = { transactions, selected, mode, routesReady, flightStartedAt, onFlightDone, globeSettings, fullPerformance }
     if (mode === "flight") doneRef.current = false
-  }, [flightStartedAt, globeSettings, mode, onFlightDone, routesReady, selected, transactions])
+  }, [flightStartedAt, fullPerformance, globeSettings, mode, onFlightDone, routesReady, selected, transactions])
 
   useEffect(() => {
     const motion = focusMotionRef.current
@@ -1205,19 +1227,26 @@ export function ThreeGlobeCanvas({
       return pulse
     })
 
+    let renderWidth = Math.max(1, Math.floor(host.clientWidth))
+    let renderHeight = Math.max(1, Math.floor(host.clientHeight))
+    let renderDpr = Math.min(window.devicePixelRatio || 1, 2)
+    let flightCanvasDirty = false
+    let rendererOpacity = "1"
+
     const resize = () => {
-      const width = Math.max(1, Math.floor(host.clientWidth))
-      const height = Math.max(1, Math.floor(host.clientHeight))
-      const aspect = width / height
+      renderWidth = Math.max(1, Math.floor(host.clientWidth))
+      renderHeight = Math.max(1, Math.floor(host.clientHeight))
+      renderDpr = Math.min(window.devicePixelRatio || 1, 2)
+      const aspect = renderWidth / renderHeight
       const viewSize = 2.45
       camera.left = (-viewSize * aspect) / 2
       camera.right = (viewSize * aspect) / 2
       camera.top = viewSize / 2
       camera.bottom = -viewSize / 2
       camera.updateProjectionMatrix()
-      renderer.setSize(width, height, false)
-      lineResolution.set(width, height)
-      resizeCanvas(flightCanvas, width, height, Math.min(window.devicePixelRatio || 1, 2))
+      renderer.setSize(renderWidth, renderHeight, false)
+      lineResolution.set(renderWidth, renderHeight)
+      resizeCanvas(flightCanvas, renderWidth, renderHeight, renderDpr)
     }
 
     const observer = new ResizeObserver(resize)
@@ -1255,8 +1284,14 @@ export function ThreeGlobeCanvas({
     host.addEventListener("pointermove", handlePointerMove)
     host.addEventListener("pointerup", stopDrag)
     host.addEventListener("pointercancel", stopDrag)
+    const handleContextLost = (event: Event) => {
+      event.preventDefault()
+      for (const flow of flowsRef.current) cancelFlowAnimations(flow)
+    }
+    renderer.domElement.addEventListener("webglcontextlost", handleContextLost)
 
     let raf = 0
+    let lastRenderAt = 0
     let lastGeometryUpdate = 0
     let lastArcHeight = latestRef.current.globeSettings.arcHeight
     let lastSourceLabelText = ""
@@ -1274,38 +1309,60 @@ export function ThreeGlobeCanvas({
     const liftedScratchVec: Vec3 = [0, 0, 0]
     const liftedMidpointVec: Vec3 = [0, 0, 0]
     const render = () => {
+      if (document.hidden) {
+        raf = requestAnimationFrame(render)
+        return
+      }
+
       const current = latestRef.current
       const now = performance.now()
-      const width = Math.max(1, Math.floor(host.clientWidth))
-      const height = Math.max(1, Math.floor(host.clientHeight))
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      const flightCtx = flightCanvas.getContext("2d")
-      if (flightCtx) {
-        flightCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
-        flightCtx.clearRect(0, 0, width, height)
+      const drag = dragRef.current
+      const globeSettings = effectiveGlobeSettings(current.globeSettings, current.fullPerformance)
+      const frameInterval = current.fullPerformance
+        ? FULL_PERFORMANCE_FRAME_MS
+        : current.mode === "focus" || current.mode === "flight" || current.mode === "success" || drag.active
+        ? INTERACTIVE_FRAME_MS
+        : MONITOR_FRAME_MS
+      if (now - lastRenderAt < frameInterval) {
+        raf = requestAnimationFrame(render)
+        return
       }
+      lastRenderAt = now
+      const width = renderWidth
+      const height = renderHeight
 
       const elapsed = current.flightStartedAt ? now - current.flightStartedAt : 0
       const rawFlight = current.mode === "flight" || current.mode === "success" ? Math.min(elapsed / FLIGHT_DURATION, 1) : 0
       const success = current.mode === "success" ? Math.min((elapsed - FLIGHT_DURATION) / 1200, 1) : 0
       const tunnelActive = (current.mode === "flight" || current.mode === "success") && rawFlight > 0.08
-      renderer.domElement.style.opacity = tunnelActive ? "0" : "1"
+      const nextRendererOpacity = tunnelActive ? "0" : "1"
+      if (rendererOpacity !== nextRendererOpacity) {
+        rendererOpacity = nextRendererOpacity
+        renderer.domElement.style.opacity = rendererOpacity
+      }
+      const flightCtx = tunnelActive || flightCanvasDirty ? flightCanvas.getContext("2d") : null
       if (flightCtx && tunnelActive) {
+        flightCtx.setTransform(renderDpr, 0, 0, renderDpr, 0, 0)
+        flightCtx.clearRect(0, 0, width, height)
         drawFlightScene(flightCtx, width, height, now, easeInOutQuad((rawFlight - 0.08) / 0.92), success, current.selected)
+        flightCanvasDirty = true
         if (rawFlight >= 1 && current.mode === "flight" && !doneRef.current) {
           doneRef.current = true
           current.onFlightDone()
         }
         raf = requestAnimationFrame(render)
         return
+      } else if (flightCtx && flightCanvasDirty) {
+        flightCtx.setTransform(renderDpr, 0, 0, renderDpr, 0, 0)
+        flightCtx.clearRect(0, 0, width, height)
+        flightCanvasDirty = false
       }
 
-      const drag = dragRef.current
       const focusSequence = focusSequenceRef.current
-      setVec3FromLatLng(selectedSourceVec, current.selected.source.lat, current.selected.source.lng)
-      setVec3FromLatLng(selectedTargetVec, current.selected.target.lat, current.selected.target.lng)
       let focusFlightProgress = 0
       if (current.mode === "focus") {
+        setVec3FromLatLng(selectedSourceVec, current.selected.source.lat, current.selected.source.lng)
+        setVec3FromLatLng(selectedTargetVec, current.selected.target.lat, current.selected.target.lng)
         if (focusSequence.selectedId !== current.selected.id) {
           focusSequence.selectedId = current.selected.id
           focusSequence.startedAt = now
@@ -1342,7 +1399,7 @@ export function ThreeGlobeCanvas({
           const solved = solveRotationForScreenPoint(focusVec, phiRef.current, thetaRef.current, camera, 1.78, 0, 0.18)
           easeRotationToward(phiRef, thetaRef, solved.phi, solved.theta, focusSequence.phase === "flight" ? 0.16 : 0.09)
         } else {
-          phiRef.current += current.globeSettings.rotateSpeed + drag.velocity
+          phiRef.current += globeSettings.rotateSpeed + drag.velocity
         }
         drag.velocity *= 0.94
         if (Math.abs(drag.velocity) < 0.0001) drag.velocity = 0
@@ -1356,12 +1413,12 @@ export function ThreeGlobeCanvas({
       if (current.routesReady) {
         if (!routesSeededRef.current) {
           for (const flow of flowsRef.current) cancelFlowAnimations(flow)
-          flowsRef.current = seedInitialTransactionFlows(now, current.transactions, current.globeSettings)
+          flowsRef.current = seedInitialTransactionFlows(now, current.transactions, globeSettings)
           routesSeededRef.current = true
           lastAddRef.current = now
           lastGeometryUpdate = 0
         }
-        updateFlows(now, flowsRef.current, current.transactions, current.globeSettings, lastAddRef)
+        updateFlows(now, flowsRef.current, current.transactions, globeSettings, lastAddRef)
       } else if (flowsRef.current.length > 0) {
         for (const flow of flowsRef.current) cancelFlowAnimations(flow)
         flowsRef.current = []
@@ -1369,26 +1426,26 @@ export function ThreeGlobeCanvas({
       } else {
         routesSeededRef.current = false
       }
-      if (Math.abs(current.globeSettings.arcHeight - lastArcHeight) > 0.001) {
+      if (Math.abs(globeSettings.arcHeight - lastArcHeight) > 0.001) {
         for (const flow of flowsRef.current) {
-          flow.arcPoints = createArcPoints(flow.from.vec, flow.to.vec, current.globeSettings.arcHeight * flow.arcHeight, ARC_SEGMENTS)
+          flow.arcPoints = createArcPoints(flow.from.vec, flow.to.vec, globeSettings.arcHeight * flow.arcHeight, ARC_SEGMENTS)
         }
-        lastArcHeight = current.globeSettings.arcHeight
+        lastArcHeight = globeSettings.arcHeight
         lastGeometryUpdate = 0
       }
 
-      const shouldUpdateGeometry = now - lastGeometryUpdate > (drag.active ? 260 : 90)
+      const shouldUpdateGeometry = now - lastGeometryUpdate > (current.fullPerformance ? FULL_PERFORMANCE_GEOMETRY_UPDATE_MS : drag.active ? GEOMETRY_UPDATE_DRAG_MS : GEOMETRY_UPDATE_MS)
       if (shouldUpdateGeometry) {
         const focusMotion = focusMotionRef.current
-        const normalSegments = lineSegmentsFromFlows(flowsRef.current, current.globeSettings, false, now)
+        const normalSegments = lineSegmentsFromFlows(flowsRef.current, globeSettings, false, now)
         setFatSegments(normalGlowLines, normalSegments)
         setFatSegments(normalLines, normalSegments)
-        setFatSegments(largeLines, lineSegmentsFromFlows(flowsRef.current, current.globeSettings, true, now))
-        setFatSegments(largeTrailLines, largeTrailSegmentsFromFlows(flowsRef.current, current.globeSettings))
-        const failedSegments = failedSegmentsFromFlows(flowsRef.current, current.globeSettings, now)
+        setFatSegments(largeLines, lineSegmentsFromFlows(flowsRef.current, globeSettings, true, now))
+        setFatSegments(largeTrailLines, largeTrailSegmentsFromFlows(flowsRef.current, globeSettings))
+        const failedSegments = failedSegmentsFromFlows(flowsRef.current, globeSettings, now)
         setFatSegments(failedGlowLines, failedSegments)
         setFatSegments(failedLines, failedSegments)
-        const shimmerSegments = shimmerSegmentsFromFlows(flowsRef.current, current.globeSettings, now)
+        const shimmerSegments = shimmerSegmentsFromFlows(flowsRef.current, globeSettings, now)
         setFatSegments(shimmerTailLines, shimmerSegments[0])
         setFatSegments(shimmerMidLines, shimmerSegments[1])
         setFatSegments(shimmerHeadLines, shimmerSegments[2])
@@ -1397,15 +1454,15 @@ export function ThreeGlobeCanvas({
           const showFocusRoute = focusSequence.progress > 0.01
           setFatSegments(
             selectedBaseLines,
-            showFocusRoute ? selectedRouteSegmentsProgress(current.selected, current.globeSettings, focusSequence.progress, focusSequence.phase === "target-label") : EMPTY_SEGMENTS,
+            showFocusRoute ? selectedRouteSegmentsProgress(current.selected, globeSettings, focusSequence.progress, focusSequence.phase === "target-label") : EMPTY_SEGMENTS,
           )
           setFatSegments(
             selectedLines,
-            showFocusRoute && focusSequence.phase !== "target-label" ? selectedRouteSegmentsProgress(current.selected, current.globeSettings, focusSequence.progress) : EMPTY_SEGMENTS,
+            showFocusRoute && focusSequence.phase !== "target-label" ? selectedRouteSegmentsProgress(current.selected, globeSettings, focusSequence.progress) : EMPTY_SEGMENTS,
           )
         } else {
-          setFatSegments(selectedBaseLines, showSelected ? selectedRouteSegments(current.selected, current.globeSettings, now, focusMotion.trail, true) : EMPTY_SEGMENTS)
-          setFatSegments(selectedLines, showSelected ? selectedRouteSegments(current.selected, current.globeSettings, now, focusMotion.trail) : EMPTY_SEGMENTS)
+          setFatSegments(selectedBaseLines, showSelected ? selectedRouteSegments(current.selected, globeSettings, now, focusMotion.trail, true) : EMPTY_SEGMENTS)
+          setFatSegments(selectedLines, showSelected ? selectedRouteSegments(current.selected, globeSettings, now, focusMotion.trail) : EMPTY_SEGMENTS)
         }
         lastGeometryUpdate = now
       }
@@ -1424,28 +1481,28 @@ export function ThreeGlobeCanvas({
       const selectedMaterial = selectedLines.material as LineMaterial
       const focusMotion = focusMotionRef.current
       const ambientRouteDim = current.mode === "focus" ? focusMotion.worldDim : 1
-      const normalPulse = 1 + Math.sin(now * 0.0026) * 0.18 * (current.globeSettings.normalPulse ?? 1)
-      gridLines.visible = current.globeSettings.showGrid
-      gridMaterial.opacity = current.globeSettings.showGrid ? 0.055 * current.globeSettings.surfaceBrightness : 0
-      normalGlowMaterial.opacity = 0.1 * normalPulse * current.globeSettings.arcBrightness * (current.globeSettings.normalGlow ?? 1) * ambientRouteDim
-      normalMaterial.opacity = 0.18 * normalPulse * current.globeSettings.arcBrightness * (current.globeSettings.normalGlow ?? 1) * ambientRouteDim
-      const shimmerBaseOpacity = normalPulse * current.globeSettings.arcBrightness * (current.globeSettings.normalHighlight ?? 1) * ambientRouteDim
+      const normalPulse = 1 + Math.sin(now * 0.0026) * 0.18 * (globeSettings.normalPulse ?? 1)
+      gridLines.visible = globeSettings.showGrid
+      gridMaterial.opacity = globeSettings.showGrid ? 0.055 * globeSettings.surfaceBrightness : 0
+      normalGlowMaterial.opacity = 0.1 * normalPulse * globeSettings.arcBrightness * (globeSettings.normalGlow ?? 1) * ambientRouteDim
+      normalMaterial.opacity = 0.18 * normalPulse * globeSettings.arcBrightness * (globeSettings.normalGlow ?? 1) * ambientRouteDim
+      const shimmerBaseOpacity = normalPulse * globeSettings.arcBrightness * (globeSettings.normalHighlight ?? 1) * ambientRouteDim
       shimmerTailMaterial.opacity = 0.08 * shimmerBaseOpacity
       shimmerMidMaterial.opacity = 0.18 * shimmerBaseOpacity
       shimmerHeadMaterial.opacity = 0.34 * shimmerBaseOpacity
-      largeMaterial.opacity = 0.28 * current.globeSettings.arcBrightness * (current.globeSettings.largeGlow ?? 1) * ambientRouteDim
-      largeTrailMaterial.opacity = 0.68 * current.globeSettings.arcBrightness * (current.globeSettings.largeGlow ?? 1) * ambientRouteDim
+      largeMaterial.opacity = 0.28 * globeSettings.arcBrightness * (globeSettings.largeGlow ?? 1) * ambientRouteDim
+      largeTrailMaterial.opacity = 0.68 * globeSettings.arcBrightness * (globeSettings.largeGlow ?? 1) * ambientRouteDim
       const failedPulse = 0.62 + Math.sin(now * 0.0075) * 0.28
       const failedFocusDim = current.mode === "focus" ? 0.08 : 1
-      failedGlowMaterial.opacity = failedPulse * current.globeSettings.arcBrightness * failedFocusDim
-      failedMaterial.opacity = clamp(failedPulse + 0.16, 0.72, 1) * current.globeSettings.arcBrightness * failedFocusDim
-      normalGlowMaterial.linewidth = 2.1 * (current.globeSettings.normalLineWidth ?? 1) * (current.globeSettings.normalGlow ?? 1)
-      normalMaterial.linewidth = 0.9 * (current.globeSettings.normalLineWidth ?? 1)
-      shimmerTailMaterial.linewidth = 0.68 * (current.globeSettings.normalLineWidth ?? 1)
-      shimmerMidMaterial.linewidth = 1.0 * (current.globeSettings.normalLineWidth ?? 1)
-      shimmerHeadMaterial.linewidth = 1.38 * (current.globeSettings.normalLineWidth ?? 1)
+      failedGlowMaterial.opacity = failedPulse * globeSettings.arcBrightness * failedFocusDim
+      failedMaterial.opacity = clamp(failedPulse + 0.16, 0.72, 1) * globeSettings.arcBrightness * failedFocusDim
+      normalGlowMaterial.linewidth = 2.1 * (globeSettings.normalLineWidth ?? 1) * (globeSettings.normalGlow ?? 1)
+      normalMaterial.linewidth = 0.9 * (globeSettings.normalLineWidth ?? 1)
+      shimmerTailMaterial.linewidth = 0.68 * (globeSettings.normalLineWidth ?? 1)
+      shimmerMidMaterial.linewidth = 1.0 * (globeSettings.normalLineWidth ?? 1)
+      shimmerHeadMaterial.linewidth = 1.38 * (globeSettings.normalLineWidth ?? 1)
       largeMaterial.linewidth = 1.35
-      largeTrailMaterial.linewidth = 2.4 * (current.globeSettings.largeDotScale ?? 1)
+      largeTrailMaterial.linewidth = 2.4 * (globeSettings.largeDotScale ?? 1)
       failedGlowMaterial.linewidth = 5.4 + Math.sin(now * 0.0075) * 1.1
       failedMaterial.linewidth = 2.7 + Math.sin(now * 0.0075) * 0.55
       selectedBaseMaterial.opacity = 0.3 * focusMotion.glow
@@ -1453,31 +1510,33 @@ export function ThreeGlobeCanvas({
       selectedBaseMaterial.linewidth = 1.6 + focusMotion.glow * 0.35
       selectedMaterial.linewidth = 2.4 + focusMotion.glow * 0.72
       const globeMaterial = sphere.material as THREE.ShaderMaterial
-      globeMaterial.uniforms.brightness.value = current.globeSettings.surfaceBrightness ?? 1.28
+      globeMaterial.uniforms.brightness.value = globeSettings.surfaceBrightness ?? 1.28
       const landMaterial = land.material as THREE.PointsMaterial
       const coastMaterial = coast.material as THREE.PointsMaterial
-      landMaterial.opacity = clamp(0.38 + 0.18 * (current.globeSettings.landBrightness ?? 1.65), 0.28, 0.9)
-      landMaterial.size = 1.15 + 0.62 * clamp(current.globeSettings.landBrightness ?? 1.65, 0.5, 4)
-      coastMaterial.opacity = clamp(0.54 + 0.2 * (current.globeSettings.landBrightness ?? 1.65), 0.4, 1)
-      coastMaterial.size = 1.8 + 0.85 * clamp(current.globeSettings.landBrightness ?? 1.65, 0.5, 4)
+      landMaterial.opacity = clamp(0.38 + 0.18 * (globeSettings.landBrightness ?? 1.65), 0.28, 0.9)
+      landMaterial.size = 1.15 + 0.62 * clamp(globeSettings.landBrightness ?? 1.65, 0.5, 4)
+      coastMaterial.opacity = clamp(0.54 + 0.2 * (globeSettings.landBrightness ?? 1.65), 0.4, 1)
+      coastMaterial.size = 1.8 + 0.85 * clamp(globeSettings.landBrightness ?? 1.65, 0.5, 4)
 
       const sourceLabel = sourceLabelRef.current
       const targetLabel = targetLabelRef.current
       if (sourceLabel && targetLabel) {
-        const sourceText = `${current.selected.source.country.toUpperCase()} // ${current.selected.source.city.toUpperCase()}`
-        const targetText = `${current.selected.target.country.toUpperCase()} // ${current.selected.target.city.toUpperCase()}`
-        if (sourceText !== lastSourceLabelText) {
-          sourceLabel.textContent = sourceText
-          lastSourceLabelText = sourceText
-        }
-        if (targetText !== lastTargetLabelText) {
-          targetLabel.textContent = targetText
-          lastTargetLabelText = targetText
-        }
-        positionLabelAtVec(sourceLabel, selectedSourceVec, globeGroup, camera, width, height, labelProjectVector)
-        positionLabelAtVec(targetLabel, selectedTargetVec, globeGroup, camera, width, height, labelProjectVector)
         const sourceClass = `focus-country-label source ${current.mode === "focus" && focusSequence.phase !== "approach-source" && focusSequence.phase !== "idle" ? "active" : ""}`
         const targetClass = `focus-country-label target ${current.mode === "focus" && focusSequence.phase === "target-label" ? "active" : ""}`
+        if (current.mode === "focus") {
+          const sourceText = `${current.selected.source.country.toUpperCase()} // ${current.selected.source.city.toUpperCase()}`
+          const targetText = `${current.selected.target.country.toUpperCase()} // ${current.selected.target.city.toUpperCase()}`
+          if (sourceText !== lastSourceLabelText) {
+            sourceLabel.textContent = sourceText
+            lastSourceLabelText = sourceText
+          }
+          if (targetText !== lastTargetLabelText) {
+            targetLabel.textContent = targetText
+            lastTargetLabelText = targetText
+          }
+          positionLabelAtVec(sourceLabel, selectedSourceVec, globeGroup, camera, width, height, labelProjectVector)
+          positionLabelAtVec(targetLabel, selectedTargetVec, globeGroup, camera, width, height, labelProjectVector)
+        }
         if (sourceClass !== lastSourceLabelClass) {
           sourceLabel.className = sourceClass
           lastSourceLabelClass = sourceClass
@@ -1490,7 +1549,7 @@ export function ThreeGlobeCanvas({
 
       focusDot.visible = false
       if (current.mode === "focus" && (focusSequence.phase === "flight" || focusSequence.phase === "target-label")) {
-        const point = liftedPointInto(liftedScratchVec, selectedSourceVec, selectedTargetVec, focusSequence.progress, current.globeSettings.arcHeight * 0.9, liftedMidpointVec)
+        const point = liftedPointInto(liftedScratchVec, selectedSourceVec, selectedTargetVec, focusSequence.progress, globeSettings.arcHeight * 0.9, liftedMidpointVec)
         focusDot.position.copy(copyVec3(focusDotVector, point, 1))
         focusDot.scale.setScalar(0.11 + Math.sin(now * 0.009) * 0.018)
         ;(focusDot.material as THREE.SpriteMaterial).opacity = focusSequence.phase === "target-label" ? 0.72 : 0.98
@@ -1511,17 +1570,17 @@ export function ThreeGlobeCanvas({
           const progress = flow.usesAnime ? flow.sourcePulse : easeOutCubic(clamp((now - flow.phaseStartedAt) / ARRIVING_MS, 0, 1))
           const pulse = sourcePulses[sourcePulseIndex]
           orientToSurface(pulse, flow.from.vec, 1.055, surfaceVector)
-          pulse.scale.setScalar((0.08 + progress * 0.22) * (current.globeSettings.largeDotScale ?? 1))
-          ;(pulse.material as THREE.SpriteMaterial).opacity = clamp((1 - progress) * 0.86 * (current.globeSettings.largeGlow ?? 1), 0, 1)
+          pulse.scale.setScalar((0.08 + progress * 0.22) * (globeSettings.largeDotScale ?? 1))
+          ;(pulse.material as THREE.SpriteMaterial).opacity = clamp((1 - progress) * 0.86 * (globeSettings.largeGlow ?? 1), 0, 1)
           pulse.visible = isFrontHemisphere(pulse, pulseWorldPosition)
           sourcePulseIndex += 1
         }
         if (flow.phase === "flying" && dotIndex < largeDots.length) {
-          const point = liftedPoint(flow.from.vec, flow.to.vec, flow.flightProgress, current.globeSettings.arcHeight * flow.arcHeight)
+          const point = liftedPoint(flow.from.vec, flow.to.vec, flow.flightProgress, globeSettings.arcHeight * flow.arcHeight)
           const dot = largeDots[dotIndex]
           dot.position.copy(copyVec3(focusDotVector, point, 1))
-          const scale = (current.globeSettings.largeDotScale ?? 1) * (0.8 + Math.min(1.8, Math.log10(flow.amount + 1) / 7))
-          dot.scale.setScalar(0.08 * scale * (current.globeSettings.largeGlow ?? 1))
+          const scale = (globeSettings.largeDotScale ?? 1) * (0.8 + Math.min(1.8, Math.log10(flow.amount + 1) / 7))
+          dot.scale.setScalar(0.08 * scale * (globeSettings.largeGlow ?? 1))
           ;(dot.material as THREE.SpriteMaterial).opacity = 0.96
           dot.visible = true
           dotIndex += 1
@@ -1530,8 +1589,8 @@ export function ThreeGlobeCanvas({
           const progress = flow.usesAnime ? flow.targetPulse : easeOutCubic(clamp((now - flow.phaseStartedAt) / LANDING_MS, 0, 1))
           const pulse = targetPulses[targetPulseIndex]
           orientToSurface(pulse, flow.to.vec, 1.055, surfaceVector)
-          pulse.scale.setScalar((0.08 + progress * 0.24) * (current.globeSettings.largeDotScale ?? 1))
-          ;(pulse.material as THREE.SpriteMaterial).opacity = clamp((1 - progress) * 0.88 * (current.globeSettings.largeGlow ?? 1), 0, 1)
+          pulse.scale.setScalar((0.08 + progress * 0.24) * (globeSettings.largeDotScale ?? 1))
+          ;(pulse.material as THREE.SpriteMaterial).opacity = clamp((1 - progress) * 0.88 * (globeSettings.largeGlow ?? 1), 0, 1)
           pulse.visible = isFrontHemisphere(pulse, pulseWorldPosition)
           targetPulseIndex += 1
         }
@@ -1549,6 +1608,7 @@ export function ThreeGlobeCanvas({
       host.removeEventListener("pointermove", handlePointerMove)
       host.removeEventListener("pointerup", stopDrag)
       host.removeEventListener("pointercancel", stopDrag)
+      renderer.domElement.removeEventListener("webglcontextlost", handleContextLost)
       renderer.dispose()
       sphere.geometry.dispose()
       ;(sphere.material as THREE.Material).dispose()

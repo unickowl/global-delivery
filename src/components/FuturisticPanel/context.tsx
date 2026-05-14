@@ -4,9 +4,13 @@ import type { ReactNode } from "react"
 const PANEL_POSITION_STORAGE_PREFIX = "owlpay.panelPosition."
 
 function clearStoredPanelPositions() {
-  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
-    const key = localStorage.key(i)
-    if (key?.startsWith(PANEL_POSITION_STORAGE_PREFIX)) localStorage.removeItem(key)
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+      const key = localStorage.key(i)
+      if (key?.startsWith(PANEL_POSITION_STORAGE_PREFIX)) localStorage.removeItem(key)
+    }
+  } catch {
+    // Storage can be unavailable in private / restricted contexts.
   }
 }
 

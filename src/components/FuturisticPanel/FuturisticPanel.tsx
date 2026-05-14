@@ -7,6 +7,12 @@ import { useBoot } from "./context"
 import { useElementSize, useHover } from "./hooks"
 import type { CornerKey, PanelState } from "./types"
 
+export type FuturisticPanelRenderState = {
+  active: boolean
+  loading: boolean
+  collapsed: boolean
+}
+
 export interface FuturisticPanelProps extends Omit<HTMLAttributes<HTMLDivElement>, "color"> {
   selected?: boolean
   /** Manual hover override; if omitted, hover is auto-detected. */
@@ -30,7 +36,7 @@ export interface FuturisticPanelProps extends Omit<HTMLAttributes<HTMLDivElement
   scanning?: boolean
   /** External command for global expand/collapse controls. */
   forceCollapsed?: boolean
-  children: ReactNode
+  children: ReactNode | ((state: FuturisticPanelRenderState) => ReactNode)
 }
 
 const DEFAULT_COLOR = "var(--hud-cyan, #7df6ff)"
@@ -95,9 +101,11 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   const { visible: bootVisible, epoch } = useBoot()
   const [hasBootedOnce, setHasBootedOnce] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [contentReady, setContentReady] = useState(false)
   const prevContentStateRef = useRef<PanelState | null>(null)
   const dragRef = useRef({ active: false, pointerId: -1, startX: 0, startY: 0, x: 0, y: 0, baseX: 0, baseY: 0 })
   const storageKey = useMemo(() => (label ? panelPositionStorageKey(label) : null), [label])
+  const shapeAnimationRunRef = useRef(0)
   // Open-progress: 0 = closed (small center square), 1 = horizontal band,
   // 2 = fully open chamfered shape. Drives both clip-path and corner positions.
   const openRef = useRef({ p: 0 })
@@ -144,11 +152,15 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     }
 
     const persistDrag = () => {
-      if (Math.abs(dragRef.current.x) < 0.5 && Math.abs(dragRef.current.y) < 0.5) {
-        localStorage.removeItem(storageKey)
-        return
+      try {
+        if (Math.abs(dragRef.current.x) < 0.5 && Math.abs(dragRef.current.y) < 0.5) {
+          localStorage.removeItem(storageKey)
+          return
+        }
+        localStorage.setItem(storageKey, JSON.stringify({ x: dragRef.current.x, y: dragRef.current.y }))
+      } catch {
+        // Position persistence is optional; restricted storage must not crash the HUD.
       }
-      localStorage.setItem(storageKey, JSON.stringify({ x: dragRef.current.x, y: dragRef.current.y }))
     }
 
     const stopDrag = (event?: PointerEvent) => {
@@ -210,6 +222,16 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   // Apply revealDelay only to the boot reveal; transient state changes use no delay.
   const layerDelay = state === "visible" || state === "hidden" ? revealDelay : 0
 
+  useEffect(() => {
+    if (state === "hidden" || isCollapsed) {
+      setContentReady(false)
+      return
+    }
+
+    const id = window.setTimeout(() => setContentReady(true), 420)
+    return () => window.clearTimeout(id)
+  }, [state, isCollapsed])
+
   // Two-phase open/close animation: the panel's clip-path expands from a small
   // center square to a horizontal band (phase 1), then to the full chamfered
   // shape (phase 2). Corner triangles slide outward in sync. Close reverses
@@ -217,6 +239,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   useEffect(() => {
     const panel = sizeRef.current
     if (!panel || size.width === 0 || size.height === 0) return
+    const runId = (shapeAnimationRunRef.current += 1)
 
     const ltGroup = panel.querySelector<SVGGElement>('[data-corner-group="lt"]')
     const rbGroup = panel.querySelector<SVGGElement>('[data-corner-group="rb"]')
@@ -298,6 +321,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         ease: "outExpo",
         onUpdate: () => applyShape(openRef.current.p),
       }).then(() => {
+        if (shapeAnimationRunRef.current !== runId) return
         animate(openRef.current, {
           p: 2,
           duration: 350,
@@ -320,14 +344,16 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         onUpdate: () => applyShape(openRef.current.p),
       })
         .then(() =>
+          shapeAnimationRunRef.current === runId ?
           animate(openRef.current, {
             p: 0,
             duration: 350,
             ease: "inExpo",
             onUpdate: () => applyShape(openRef.current.p),
-          }),
+          }) : undefined,
         )
         .then(() => {
+          if (shapeAnimationRunRef.current !== runId) return
           if (isCollapsed) {
             panel.style.opacity = "1"
             applyShape(0)
@@ -339,6 +365,10 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
             ease: "steps(5)",
           })
         })
+    }
+
+    return () => {
+      shapeAnimationRunRef.current += 1
     }
   }, [state, isCollapsed, size.width, size.height, layerDelay, cornerSize, sizeRef])
 
@@ -405,6 +435,12 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     }),
     [style, state, color, selectedColor],
   )
+  const contentState: FuturisticPanelRenderState = {
+    active: state !== "hidden" && !isCollapsed && contentReady,
+    loading: state !== "hidden" && !isCollapsed && !contentReady,
+    collapsed: isCollapsed,
+  }
+  const resolvedChildren = typeof children === "function" ? children(contentState) : children
 
   return (
     <div
@@ -466,7 +502,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
       )}
       {label && <span className="fp-label" aria-hidden>{label}</span>}
       {scanning && state !== "hidden" && !isCollapsed && <span className="fp-scan-beam" aria-hidden />}
-      {children}
+      {resolvedChildren}
     </div>
   )
 })
