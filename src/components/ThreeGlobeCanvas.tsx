@@ -62,6 +62,9 @@ const FOCUS_LABEL_MS = 1200
 const FOCUS_FLIGHT_MS = 5600
 const FOCUS_TARGET_MS = 1600
 const EMPTY_SEGMENTS = new Float32Array()
+const ROUTE_CORRIDOR_MAX_Y = 0.76
+const CAMERA_CORRIDOR_MAX_Y = 0.52
+const MAX_VIEW_THETA = Math.PI / 2 - 0.04
 
 const EXTRA_NODES: Array<Omit<FlowNode, "vec">> = [
   { city: "New York", country: "United States", lat: 40.7128, lng: -74.006 },
@@ -129,7 +132,7 @@ function copyVec3(target: THREE.Vector3, vec: Vec3, scale = 1) {
 function rotationTargetForLatLng(lat: number, lng: number) {
   return {
     phi: Math.PI / 2 - lng * (Math.PI / 180),
-    theta: clamp(lat * (Math.PI / 180), -1.18, 1.18),
+    theta: clamp(lat * (Math.PI / 180), -MAX_VIEW_THETA, MAX_VIEW_THETA),
   }
 }
 
@@ -221,7 +224,7 @@ function solveRotationForScreenPoint(
     if (Math.abs(determinant) < 0.0001) break
 
     phi += clamp((errorX * d - b * errorY) / determinant, -0.18, 0.18)
-    theta = clamp(theta + clamp((a * errorY - errorX * c) / determinant, -0.18, 0.18), -1.32, 1.32)
+    theta = clamp(theta + clamp((a * errorY - errorX * c) / determinant, -0.18, 0.18), -MAX_VIEW_THETA, MAX_VIEW_THETA)
     if (projectedNdcForRotation(vec, phi, theta, scale, camera, depthCheck).z < 0.08) {
       const fallback = rotationTargetForVec(vec)
       phi = fallback.phi
@@ -231,16 +234,6 @@ function solveRotationForScreenPoint(
   }
 
   return { phi, theta }
-}
-
-function slerp(a: Vec3, b: Vec3, t: number): Vec3 {
-  const dot = clamp(a[0] * b[0] + a[1] * b[1] + a[2] * b[2], -1, 1)
-  const omega = Math.acos(dot)
-  if (Math.abs(omega) < 1e-8) return a
-  const sinO = Math.sin(omega)
-  const wa = Math.sin((1 - t) * omega) / sinO
-  const wb = Math.sin(t * omega) / sinO
-  return [a[0] * wa + b[0] * wb, a[1] * wa + b[1] * wb, a[2] * wa + b[2] * wb]
 }
 
 function slerpInto(target: Vec3, a: Vec3, b: Vec3, t: number) {
@@ -261,9 +254,98 @@ function slerpInto(target: Vec3, a: Vec3, b: Vec3, t: number) {
   return target
 }
 
-function liftedPointInto(target: Vec3, from: Vec3, to: Vec3, t: number, height: number, midpointScratch: Vec3) {
+function normalizeVec(target: Vec3) {
+  const len = Math.hypot(target[0], target[1], target[2]) || 1
+  target[0] /= len
+  target[1] /= len
+  target[2] /= len
+  return target
+}
+
+function constrainRouteCorridor(target: Vec3, from: Vec3, to: Vec3, t: number) {
+  const interior = Math.sin(Math.PI * clamp(t, 0, 1))
+  const maxY = ROUTE_CORRIDOR_MAX_Y + (1 - interior) * (1 - ROUTE_CORRIDOR_MAX_Y)
+  if (Math.abs(target[1]) <= maxY) return target
+
+  const sign = Math.sign(target[1]) || 1
+  const y = sign * maxY
+  let x = target[0]
+  let z = target[2]
+  let xz = Math.hypot(x, z)
+
+  if (xz < 0.0001) {
+    x = from[0] + to[0]
+    z = from[2] + to[2]
+    xz = Math.hypot(x, z)
+  }
+  if (xz < 0.0001) {
+    x = 1
+    z = 0
+    xz = 1
+  }
+
+  const radius = Math.sqrt(Math.max(0.0001, 1 - y * y))
+  target[0] = (x / xz) * radius
+  target[1] = y
+  target[2] = (z / xz) * radius
+  return target
+}
+
+function constrainCameraCorridor(target: Vec3, maxY = CAMERA_CORRIDOR_MAX_Y) {
+  if (Math.abs(target[1]) <= maxY) return target
+
+  const sign = Math.sign(target[1]) || 1
+  const y = sign * maxY
+  let x = target[0]
+  let z = target[2]
+  let xz = Math.hypot(x, z)
+
+  if (xz < 0.0001) {
+    x = 1
+    z = 0
+    xz = 1
+  }
+
+  const radius = Math.sqrt(Math.max(0.0001, 1 - y * y))
+  target[0] = (x / xz) * radius
+  target[1] = y
+  target[2] = (z / xz) * radius
+  return target
+}
+
+function routeSurfacePointInto(target: Vec3, from: Vec3, to: Vec3, t: number) {
   slerpInto(target, from, to, t)
-  slerpInto(midpointScratch, from, to, 0.5)
+  constrainRouteCorridor(target, from, to, t)
+  return normalizeVec(target)
+}
+
+function cameraFocusPointInto(target: Vec3, from: Vec3, to: Vec3, t: number, phase: FocusPhase) {
+  if (phase === "approach-source" || phase === "source-label") {
+    target[0] = from[0]
+    target[1] = from[1]
+    target[2] = from[2]
+  } else if (phase === "target-label") {
+    target[0] = to[0]
+    target[1] = to[1]
+    target[2] = to[2]
+  } else {
+    routeSurfacePointInto(target, from, to, t)
+  }
+
+  constrainCameraCorridor(target)
+  return normalizeVec(target)
+}
+
+function routeSurfacePoint(from: Vec3, to: Vec3, t: number): Vec3 {
+  return routeSurfacePointInto([0, 0, 0], from, to, t)
+}
+
+function liftedPointInto(target: Vec3, from: Vec3, to: Vec3, t: number, height: number, midpointScratch: Vec3) {
+  routeSurfacePointInto(target, from, to, t)
+  midpointScratch[0] = target[0]
+  midpointScratch[1] = target[1]
+  midpointScratch[2] = target[2]
+  normalizeVec(midpointScratch)
   const lift = Math.sin(Math.PI * t)
   target[0] += midpointScratch[0] * height * lift
   target[1] += midpointScratch[1] * height * lift
@@ -272,13 +354,12 @@ function liftedPointInto(target: Vec3, from: Vec3, to: Vec3, t: number, height: 
 }
 
 function liftedPoint(from: Vec3, to: Vec3, t: number, height: number): Vec3 {
-  const point = slerp(from, to, t)
-  const midpoint = slerp(from, to, 0.5)
+  const point = routeSurfacePoint(from, to, t)
   const lift = Math.sin(Math.PI * t)
   return [
-    point[0] + midpoint[0] * height * lift,
-    point[1] + midpoint[1] * height * lift,
-    point[2] + midpoint[2] * height * lift,
+    point[0] + point[0] * height * lift,
+    point[1] + point[1] * height * lift,
+    point[2] + point[2] * height * lift,
   ]
 }
 
@@ -1189,7 +1270,7 @@ export function ThreeGlobeCanvas({
       const dx = event.clientX - drag.startX
       const dy = event.clientY - drag.startY
       phiRef.current = drag.startPhi + (dx / width) * Math.PI * 2
-      thetaRef.current = clamp(drag.startTheta - dy * 0.004, -Math.PI / 2.4, Math.PI / 2.4)
+      thetaRef.current = clamp(drag.startTheta - dy * 0.004, -MAX_VIEW_THETA, MAX_VIEW_THETA)
       drag.velocity = ((event.clientX - drag.lastX) / Math.max(16, now - drag.lastT)) * 0.018
       drag.lastX = event.clientX
       drag.lastT = now
@@ -1282,10 +1363,13 @@ export function ThreeGlobeCanvas({
 
       if (!drag.active) {
         if (current.mode === "focus") {
-          let focusVec = selectedSourceVec
-          if (focusSequence.phase === "flight" || focusSequence.phase === "target-label") {
-            focusVec = slerpInto(selectedFocusVec, selectedSourceVec, selectedTargetVec, focusSequence.progress)
-          }
+          const focusVec = cameraFocusPointInto(
+            selectedFocusVec,
+            selectedSourceVec,
+            selectedTargetVec,
+            focusSequence.progress,
+            focusSequence.phase,
+          )
           const solved = solveRotationForScreenPoint(focusVec, phiRef.current, thetaRef.current, camera, 1.78, 0, 0.18)
           easeRotationToward(phiRef, thetaRef, solved.phi, solved.theta, focusSequence.phase === "flight" ? 0.16 : 0.09)
         } else {

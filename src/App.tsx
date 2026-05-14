@@ -204,10 +204,17 @@ function FocusTelemetry({ transaction, forceCollapsed }: { transaction: Transact
   )
 }
 
-function ReplayButton() {
+function ReplayButton({ onReplay }: { onReplay?: () => void }) {
   const { replay } = useBoot()
   return (
-    <button className="boot-replay" onClick={replay} aria-label="Replay HUD boot sequence">
+    <button
+      className="boot-replay"
+      onClick={() => {
+        onReplay?.()
+        replay()
+      }}
+      aria-label="Replay HUD boot sequence"
+    >
       <RotateCw size={12} />
     </button>
   )
@@ -352,6 +359,11 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
   const phiRef = useRef(0)
   const thetaRef = useRef(0.22)
 
+  const resetGlobeView = useCallback(() => {
+    phiRef.current = 0
+    thetaRef.current = 0.22
+  }, [])
+
   const selected = useMemo(
     () => {
       if (mode === "monitor") return live.transactions[0]
@@ -363,6 +375,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
   // Focus track: click a transaction row
   const focusTransaction = (tx: Transaction) => {
     if (mode === "focus" && tx.id === selectedId) {
+      resetGlobeView()
       setMode("monitor")
       return
     }
@@ -371,6 +384,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
   }
 
   const clearFocus = () => {
+    resetGlobeView()
     setSelectedId(live.transactions[0]?.id ?? selectedId)
     setMode("monitor")
   }
@@ -522,7 +536,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
           </div>
         </FuturisticPanel>
 
-        <ReplayButton />
+        <ReplayButton onReplay={resetGlobeView} />
         <PanelCollapseButton collapsed={cardsCollapsed} onToggle={() => setCardsCollapsed((value) => !value)} />
 
       </main>
