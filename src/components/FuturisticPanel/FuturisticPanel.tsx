@@ -35,6 +35,23 @@ export interface FuturisticPanelProps extends Omit<HTMLAttributes<HTMLDivElement
 
 const DEFAULT_COLOR = "var(--hud-cyan, #7df6ff)"
 const DEFAULT_SELECTED = "#ff8d0a"
+const PANEL_POSITION_STORAGE_PREFIX = "owlpay.panelPosition."
+
+function panelPositionStorageKey(label: string) {
+  return `${PANEL_POSITION_STORAGE_PREFIX}${encodeURIComponent(label)}`
+}
+
+function readStoredPosition(key: string) {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { x?: unknown; y?: unknown }
+    if (typeof parsed.x !== "number" || typeof parsed.y !== "number") return null
+    return { x: parsed.x, y: parsed.y }
+  } catch {
+    return null
+  }
+}
 
 function resolveState(
   bootVisible: boolean,
@@ -79,6 +96,8 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   const [hasBootedOnce, setHasBootedOnce] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const prevContentStateRef = useRef<PanelState | null>(null)
+  const dragRef = useRef({ active: false, pointerId: -1, startX: 0, startY: 0, x: 0, y: 0, baseX: 0, baseY: 0 })
+  const storageKey = useMemo(() => (label ? panelPositionStorageKey(label) : null), [label])
   // Open-progress: 0 = closed (small center square), 1 = horizontal band,
   // 2 = fully open chamfered shape. Drives both clip-path and corner positions.
   const openRef = useRef({ p: 0 })
@@ -90,12 +109,91 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   // "visible" sequence again.
   useEffect(() => {
     setHasBootedOnce(false)
+    const panel = sizeRef.current
+    if (!panel || epoch === 0) return
+    dragRef.current.x = 0
+    dragRef.current.y = 0
+    dragRef.current.baseX = 0
+    dragRef.current.baseY = 0
+    panel.style.translate = ""
   }, [epoch])
 
   useEffect(() => {
     if (forceCollapsed === undefined) return
     setCollapsed(forceCollapsed)
   }, [forceCollapsed])
+
+  useEffect(() => {
+    const panel = sizeRef.current
+    if (!panel || !label || !storageKey) return
+
+    const handle = panel.querySelector<HTMLElement>(".fp-label")
+    if (!handle) return
+
+    const applyDrag = () => {
+      panel.style.translate = `${dragRef.current.x}px ${dragRef.current.y}px`
+    }
+
+    const stored = readStoredPosition(storageKey)
+    if (stored) {
+      dragRef.current.x = stored.x
+      dragRef.current.y = stored.y
+      dragRef.current.baseX = stored.x
+      dragRef.current.baseY = stored.y
+      applyDrag()
+    }
+
+    const persistDrag = () => {
+      if (Math.abs(dragRef.current.x) < 0.5 && Math.abs(dragRef.current.y) < 0.5) {
+        localStorage.removeItem(storageKey)
+        return
+      }
+      localStorage.setItem(storageKey, JSON.stringify({ x: dragRef.current.x, y: dragRef.current.y }))
+    }
+
+    const stopDrag = (event?: PointerEvent) => {
+      if (!dragRef.current.active) return
+      if (event && event.pointerId !== dragRef.current.pointerId) return
+      dragRef.current.active = false
+      panel.classList.remove("is-panel-dragging")
+      persistDrag()
+      if (event && handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId)
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      event.stopPropagation()
+      dragRef.current.active = true
+      dragRef.current.pointerId = event.pointerId
+      dragRef.current.startX = event.clientX
+      dragRef.current.startY = event.clientY
+      dragRef.current.baseX = dragRef.current.x
+      dragRef.current.baseY = dragRef.current.y
+      panel.classList.add("is-panel-dragging")
+      handle.setPointerCapture(event.pointerId)
+    }
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!dragRef.current.active || event.pointerId !== dragRef.current.pointerId) return
+      event.preventDefault()
+      dragRef.current.x = dragRef.current.baseX + event.clientX - dragRef.current.startX
+      dragRef.current.y = dragRef.current.baseY + event.clientY - dragRef.current.startY
+      applyDrag()
+    }
+
+    handle.addEventListener("pointerdown", handlePointerDown)
+    handle.addEventListener("pointermove", handlePointerMove)
+    handle.addEventListener("pointerup", stopDrag)
+    handle.addEventListener("pointercancel", stopDrag)
+
+    return () => {
+      handle.removeEventListener("pointerdown", handlePointerDown)
+      handle.removeEventListener("pointermove", handlePointerMove)
+      handle.removeEventListener("pointerup", stopDrag)
+      handle.removeEventListener("pointercancel", stopDrag)
+    }
+  }, [label, sizeRef, storageKey])
 
   // Once the boot reveal has played, settle into the resting "normal" state.
   // Open total: 150 (square flicker) + 350 (H expand) + 350 (V expand) +

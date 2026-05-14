@@ -219,6 +219,192 @@ function FocusTelemetry({ transaction, forceCollapsed }: { transaction: Transact
   )
 }
 
+type VolumePoint = {
+  label: string
+  deposit: number
+  withdraw: number
+  total: number
+}
+
+type MixItem = {
+  name: string
+  count: number
+  failed: number
+  pct: number
+}
+
+function parseEtaSeconds(value: string) {
+  const [minutes = "0", seconds = "0"] = value.split(":")
+  return Number(minutes) * 60 + Number(seconds)
+}
+
+function stablePointOf(transaction: Transaction) {
+  return transaction.source.chain ? transaction.source : transaction.target.chain ? transaction.target : null
+}
+
+function deriveVolumeSeries(transactions: Transaction[], buckets = 12): VolumePoint[] {
+  const recent = transactions.slice(0, buckets * 8).reverse()
+  return Array.from({ length: buckets }, (_, index) => {
+    const chunkSize = Math.max(1, Math.ceil(recent.length / buckets))
+    const chunk = recent.slice(index * chunkSize, (index + 1) * chunkSize)
+    const deposit = chunk.filter((tx) => tx.direction === "on-ramp").length
+    const withdraw = chunk.filter((tx) => tx.direction === "off-ramp").length
+    return {
+      label: `T-${buckets - index}`,
+      deposit,
+      withdraw,
+      total: deposit + withdraw,
+    }
+  })
+}
+
+function deriveMixItems(transactions: Transaction[], key: "chain" | "asset", limit = 4): MixItem[] {
+  const counts = new Map<string, { count: number; failed: number }>()
+  for (const tx of transactions) {
+    const stable = stablePointOf(tx)
+    const name = key === "chain" ? stable?.chain ?? "FIAT" : stable?.currency ?? tx.target.currency
+    const current = counts.get(name) ?? { count: 0, failed: 0 }
+    current.count += 1
+    if (tx.status === "failed") current.failed += 1
+    counts.set(name, current)
+  }
+
+  const total = Math.max(1, transactions.length)
+  return Array.from(counts.entries())
+    .map(([name, item]) => ({ name, count: item.count, failed: item.failed, pct: (item.count / total) * 100 }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+}
+
+function FlowHealthCard({
+  transactions,
+  medianSettlementSeconds,
+}: {
+  transactions: Transaction[]
+  medianSettlementSeconds: number
+}) {
+  const settled = transactions.filter((tx) => tx.status === "settled").length
+  const failed = transactions.filter((tx) => tx.status === "failed").length
+  const pending = transactions.filter((tx) => tx.status === "pending").length
+  const routing = transactions.filter((tx) => tx.status === "routing").length
+  const total = Math.max(1, transactions.length)
+  const successRate = (settled / total) * 100
+  const failureRate = (failed / total) * 100
+  const p95Eta = transactions
+    .map((tx) => parseEtaSeconds(tx.eta))
+    .sort((a, b) => a - b)[Math.min(transactions.length - 1, Math.floor(total * 0.95))] ?? 0
+  const state = failureRate > 5 ? "ALERT" : pending + routing > settled * 0.5 ? "DEGRADED" : "OK"
+
+  return (
+    <div className={cn("dash-card-inner", `dash-state-${state.toLowerCase()}`)}>
+      <div className="dash-card-head">
+        <span>Flow Health</span>
+        <strong>{state}</strong>
+      </div>
+      <div className="health-readout">
+        <span>{successRate.toFixed(1)}%</span>
+        <small>success</small>
+      </div>
+      <div className="status-bars" aria-hidden>
+        {[
+          ["settled", settled, "var(--hud-green)"],
+          ["routing", routing, "var(--hud-cyan)"],
+          ["pending", pending, "var(--hud-yellow)"],
+          ["failed", failed, "var(--hud-red)"],
+        ].map(([name, value, color]) => (
+          <div className="status-bar-row" key={name}>
+            <span>{name}</span>
+            <i><b style={{ width: `${(Number(value) / total) * 100}%`, background: color }} /></i>
+            <em>{value}</em>
+          </div>
+        ))}
+      </div>
+      <div className="dash-mini-grid">
+        <span><b>AVG</b>{formatEta(medianSettlementSeconds)}</span>
+        <span><b>P95</b>{formatEta(p95Eta)}</span>
+      </div>
+    </div>
+  )
+}
+
+function LiveVolumeCard({
+  series,
+  volume24h,
+}: {
+  series: VolumePoint[]
+  volume24h: number
+}) {
+  const maxTotal = Math.max(1, ...series.map((point) => point.total))
+  const latest = series[series.length - 1] ?? { deposit: 0, withdraw: 0, total: 0 }
+  const points = series
+    .map((point, index) => {
+      const x = series.length <= 1 ? 0 : (index / (series.length - 1)) * 100
+      const y = 38 - (point.total / maxTotal) * 34
+      return `${x.toFixed(2)},${y.toFixed(2)}`
+    })
+    .join(" ")
+
+  return (
+    <div className="dash-card-inner">
+      <div className="dash-card-head">
+        <span>Live Volume</span>
+        <strong>{latest.total}/min</strong>
+      </div>
+      <svg className="volume-spark" viewBox="0 0 100 42" preserveAspectRatio="none" aria-hidden>
+        <polyline className="volume-gridline" points="0,38 100,38" />
+        <polyline className="volume-line" points={points} />
+        {series.map((point, index) => {
+          const x = series.length <= 1 ? 0 : (index / (series.length - 1)) * 100
+          const depositHeight = (point.deposit / maxTotal) * 24
+          const withdrawHeight = (point.withdraw / maxTotal) * 24
+          return (
+            <g key={`${point.label}-${index}`}>
+              <rect className="volume-bar-deposit" x={x - 1.1} y={38 - depositHeight} width="1.2" height={depositHeight} />
+              <rect className="volume-bar-withdraw" x={x + 0.3} y={38 - withdrawHeight} width="1.2" height={withdrawHeight} />
+            </g>
+          )
+        })}
+      </svg>
+      <div className="volume-split">
+        <span><i className="deposit-dot" />DEPOSIT {latest.deposit}</span>
+        <span><i className="withdraw-dot" />WITHDRAW {latest.withdraw}</span>
+      </div>
+      <div className="dash-mini-grid">
+        <span><b>24H</b>{formatCompactMoney(volume24h)}</span>
+        <span><b>WINDOW</b>5M</span>
+      </div>
+    </div>
+  )
+}
+
+function ChainAssetMixCard({ chains, assets }: { chains: MixItem[]; assets: MixItem[] }) {
+  return (
+    <div className="dash-card-inner">
+      <div className="dash-card-head">
+        <span>Chain / Asset Mix</span>
+        <strong>{chains[0]?.name ?? "N/A"}</strong>
+      </div>
+      <div className="mix-section">
+        <span className="mix-title">CHAIN</span>
+        {chains.map((item) => (
+          <div className="mix-row" key={item.name}>
+            <span>{item.name}</span>
+            <i><b style={{ width: `${item.pct}%` }} />{item.failed > 0 && <em style={{ left: `${Math.min(96, item.pct)}%` }} />}</i>
+            <strong>{Math.round(item.pct)}%</strong>
+          </div>
+        ))}
+      </div>
+      <div className="asset-strip" aria-label="Stablecoin mix">
+        {assets.map((item) => (
+          <span key={item.name} style={{ flexGrow: Math.max(1, item.count) }}>
+            {item.name}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ReplayButton({ onReplay }: { onReplay?: () => void }) {
   const { replay } = useBoot()
   return (
@@ -386,6 +572,14 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
     },
     [live.transactions, mode, selectedId],
   )
+  const dashboardMetrics = useMemo(
+    () => ({
+      volumeSeries: deriveVolumeSeries(live.transactions),
+      chainMix: deriveMixItems(live.transactions, "chain"),
+      assetMix: deriveMixItems(live.transactions, "asset"),
+    }),
+    [live.transactions],
+  )
 
   // Focus track: click a transaction row
   const focusTransaction = (tx: Transaction) => {
@@ -510,6 +704,20 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         </FuturisticPanel>
 
         {mode === "focus" && <FocusTelemetry key={selected.id} transaction={selected} forceCollapsed={cardsCollapsed} />}
+
+        {mode === "monitor" && (
+          <div className="dashboard-rail" aria-label="Operational dashboard charts">
+            <FuturisticPanel className="hud-panel panel-dashboard-card panel-flow-health" revealDelay={520} label="FS-06 // HEALTH" forceCollapsed={cardsCollapsed}>
+              <FlowHealthCard transactions={live.transactions} medianSettlementSeconds={live.medianSettlementSeconds} />
+            </FuturisticPanel>
+            <FuturisticPanel className="hud-panel panel-dashboard-card panel-live-volume" revealDelay={600} label="FS-07 // VOLUME" forceCollapsed={cardsCollapsed} scanning>
+              <LiveVolumeCard series={dashboardMetrics.volumeSeries} volume24h={live.volume24h} />
+            </FuturisticPanel>
+            <FuturisticPanel className="hud-panel panel-dashboard-card panel-chain-mix" revealDelay={680} label="FS-08 // MIX" forceCollapsed={cardsCollapsed}>
+              <ChainAssetMixCard chains={dashboardMetrics.chainMix} assets={dashboardMetrics.assetMix} />
+            </FuturisticPanel>
+          </div>
+        )}
 
         {/* HUD: Bottom detail bar */}
         <FuturisticPanel

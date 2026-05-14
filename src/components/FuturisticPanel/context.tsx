@@ -1,6 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 
+const PANEL_POSITION_STORAGE_PREFIX = "owlpay.panelPosition."
+
+function clearStoredPanelPositions() {
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i)
+    if (key?.startsWith(PANEL_POSITION_STORAGE_PREFIX)) localStorage.removeItem(key)
+  }
+}
+
 interface BootContextValue {
   visible: boolean
   epoch: number
@@ -33,6 +42,7 @@ export function FuturisticPanelProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const replay = useCallback(() => {
+    clearStoredPanelPositions()
     if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current)
     setVisible(false)
     timeoutRef.current = window.setTimeout(() => {
