@@ -8,6 +8,13 @@ import type { Transaction } from "../../data/transactions"
 import { naturalEarthLandPoints } from "../../data/landPoints"
 import { FLIGHT_DURATION } from "../../App"
 import type { GlobeSettingsState } from "../ArcOverlay"
+import {
+  MAX_FLOWS, ARRIVING_MS, FLYING_MS, LANDING_MS, FADING_MS, ARC_SEGMENTS,
+  FOCUS_SOURCE_MS, FOCUS_LABEL_MS, FOCUS_FLIGHT_MS, FOCUS_TARGET_MS,
+  MONITOR_FRAME_MS, INTERACTIVE_FRAME_MS, FULL_PERFORMANCE_FRAME_MS,
+  GEOMETRY_UPDATE_MS, GEOMETRY_UPDATE_DRAG_MS, FULL_PERFORMANCE_GEOMETRY_UPDATE_MS,
+  EMPTY_SEGMENTS, CAMERA_CORRIDOR_MAX_Y, MAX_VIEW_THETA, EXTRA_NODES,
+} from "./lib/constants"
 
 type GlobeMode = "monitor" | "focus" | "flight" | "success"
 
@@ -51,49 +58,6 @@ type FlowTx = {
   arcPoints: Vec3[]
   animations: Array<ReturnType<typeof animate>>
 }
-
-const MAX_FLOWS = 300
-const ARRIVING_MS = 1600
-const FLYING_MS = 3200
-const LANDING_MS = 1200
-const FADING_MS = 1500
-const ARC_SEGMENTS = 32
-const FOCUS_SOURCE_MS = 1600
-const FOCUS_LABEL_MS = 1200
-const FOCUS_FLIGHT_MS = 5600
-const FOCUS_TARGET_MS = 1600
-const MONITOR_FRAME_MS = 1000 / 45
-const INTERACTIVE_FRAME_MS = 1000 / 60
-const FULL_PERFORMANCE_FRAME_MS = 1000 / 60
-const GEOMETRY_UPDATE_MS = 360
-const GEOMETRY_UPDATE_DRAG_MS = 520
-const FULL_PERFORMANCE_GEOMETRY_UPDATE_MS = 120
-const EMPTY_SEGMENTS = new Float32Array()
-const CAMERA_CORRIDOR_MAX_Y = 0.52
-const MAX_VIEW_THETA = Math.PI / 2 - 0.04
-
-const EXTRA_NODES: Array<Omit<FlowNode, "vec">> = [
-  { city: "New York", country: "United States", lat: 40.7128, lng: -74.006 },
-  { city: "Toronto", country: "Canada", lat: 43.6532, lng: -79.3832 },
-  { city: "Los Angeles", country: "United States", lat: 34.0522, lng: -118.2437 },
-  { city: "Frankfurt", country: "Germany", lat: 50.1109, lng: 8.6821 },
-  { city: "Paris", country: "France", lat: 48.8566, lng: 2.3522 },
-  { city: "Zurich", country: "Switzerland", lat: 47.3769, lng: 8.5417 },
-  { city: "Mumbai", country: "India", lat: 19.076, lng: 72.8777 },
-  { city: "Seoul", country: "South Korea", lat: 37.5665, lng: 126.978 },
-  { city: "Jakarta", country: "Indonesia", lat: -6.2088, lng: 106.8456 },
-  { city: "Manila", country: "Philippines", lat: 14.5995, lng: 120.9842 },
-  { city: "Bangkok", country: "Thailand", lat: 13.7563, lng: 100.5018 },
-  { city: "Lagos", country: "Nigeria", lat: 6.5244, lng: 3.3792 },
-  { city: "Nairobi", country: "Kenya", lat: -1.2921, lng: 36.8219 },
-  { city: "Cape Town", country: "South Africa", lat: -33.9249, lng: 18.4241 },
-  { city: "Buenos Aires", country: "Argentina", lat: -34.6037, lng: -58.3816 },
-  { city: "Lima", country: "Peru", lat: -12.0464, lng: -77.0428 },
-  { city: "Santiago", country: "Chile", lat: -33.4489, lng: -70.6693 },
-  { city: "Istanbul", country: "Turkey", lat: 41.0082, lng: 28.9784 },
-  { city: "Riyadh", country: "Saudi Arabia", lat: 24.7136, lng: 46.6753 },
-  { city: "Auckland", country: "New Zealand", lat: -36.8509, lng: 174.7645 },
-]
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
