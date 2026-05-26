@@ -1,5 +1,5 @@
 {
-  "name": "globe-delivery",
+  "name": "global-delivery",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "lint": "oxlint src"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
@@ -19,6 +20,9 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "oxlint": "^1.66.0",
     "rolldown-vite": "latest",
     "typescript": "latest"
   }
