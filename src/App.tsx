@@ -14,11 +14,14 @@ import { GlobeSettings } from "./components/GlobeSettings"
 import { FuturisticPanel, FuturisticPanelProvider, useBoot } from "./components/FuturisticPanel"
 import { transactions as baseTransactions, type Transaction } from "./data/transactions"
 import { useLiveDashboard } from "./hooks/useLiveDashboard"
+import { createTransactionSource } from "./services/transactions"
 import { cn, formatCompactMoney, formatEta, formatMoney } from "./lib/utils"
 import { usePersistentState } from "./lib/usePersistentState"
 import { TerminalBoot } from "./components/TerminalBoot"
 
 type Mode = "monitor" | "focus"
+
+const transactionSource = createTransactionSource()
 
 export const FLIGHT_DURATION = 6400
 const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#%·→/"
@@ -564,6 +567,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
   const [routesReady, setRoutesReady] = useState(false)
   const [cardsCollapsed, setCardsCollapsed] = useState(false)
   const live = useLiveDashboard({
+    source: transactionSource,
     maxTransactions: globeSettings.transactionBufferSize,
     streamIntervalMs: globeSettings.streamIntervalMs,
   })
