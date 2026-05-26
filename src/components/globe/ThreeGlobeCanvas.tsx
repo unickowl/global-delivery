@@ -28,6 +28,7 @@ import {
   setFatSegments, disposeFatSegments, createGlowTexture,
   drawGlow, drawFlightScene, resizeCanvas,
 } from "./lib/three-objects"
+import { renderFlowCount, effectiveGlobeSettings } from "./lib/settings"
 
 type GlobeMode = "monitor" | "focus" | "flight" | "success"
 
@@ -288,18 +289,6 @@ function startFlowAnimation(flow: FlowTx, settings: GlobeSettingsState) {
     )
   } else if (flow.phase === "breathing") {
     startBreathingAnimation(flow)
-  }
-}
-
-function renderFlowCount(settings: GlobeSettingsState) {
-  return clamp(Math.round(Math.min(settings.flowCount, settings.renderFlowCap ?? settings.flowCount)), 20, MAX_FLOWS)
-}
-
-function effectiveGlobeSettings(settings: GlobeSettingsState, fullPerformance: boolean): GlobeSettingsState {
-  if (!fullPerformance) return settings
-  return {
-    ...settings,
-    renderFlowCap: MAX_FLOWS,
   }
 }
 
