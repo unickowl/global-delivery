@@ -1,0 +1,57 @@
+import type { FlowPoint } from "../../data/transactions"
+
+export type MockHub = Omit<FlowPoint, "amount"> & {
+  baseAmount: number
+  usdRate: number
+  pool: string
+}
+
+export const mockHubs: MockHub[] = [
+  { name: "Meridian Treasury", city: "San Francisco", country: "United States", currency: "USD", lat: 37.7749, lng: -122.4194, baseAmount: 420000, usdRate: 1, pool: "APAC Prime" },
+  { name: "Hudson Settlement", city: "New York", country: "United States", currency: "USD", lat: 40.7128, lng: -74.006, baseAmount: 610000, usdRate: 1, pool: "EU Instant" },
+  { name: "Maple Clearing", city: "Toronto", country: "Canada", currency: "CAD", lat: 43.6532, lng: -79.3832, baseAmount: 520000, usdRate: 0.73, pool: "EU Instant" },
+  { name: "Atlas Exchange", city: "Singapore", country: "Singapore", currency: "SGD", lat: 1.3521, lng: 103.8198, baseAmount: 560000, usdRate: 0.74, pool: "APAC Prime" },
+  { name: "Sakura Capital", city: "Tokyo", country: "Japan", currency: "JPY", lat: 35.6762, lng: 139.6503, baseAmount: 84000000, usdRate: 0.0064, pool: "APAC Prime" },
+  { name: "Harbor Market", city: "Sydney", country: "Australia", currency: "AUD", lat: -33.8688, lng: 151.2093, baseAmount: 730000, usdRate: 0.66, pool: "APAC Prime" },
+  { name: "Pearl Holdings", city: "Hong Kong", country: "Hong Kong", currency: "HKD", lat: 22.3193, lng: 114.1694, baseAmount: 3100000, usdRate: 0.128, pool: "APAC Prime" },
+  { name: "Formosa Settlement", city: "Taipei", country: "Taiwan", currency: "TWD", lat: 25.033, lng: 121.5654, baseAmount: 18600000, usdRate: 0.031, pool: "APAC Prime" },
+  { name: "Han River Desk", city: "Seoul", country: "South Korea", currency: "KRW", lat: 37.5665, lng: 126.978, baseAmount: 690000000, usdRate: 0.00073, pool: "APAC Prime" },
+  { name: "Bandra Liquidity", city: "Mumbai", country: "India", currency: "INR", lat: 19.076, lng: 72.8777, baseAmount: 43000000, usdRate: 0.012, pool: "MENA Express" },
+  { name: "Chao Phraya FX", city: "Bangkok", country: "Thailand", currency: "THB", lat: 13.7563, lng: 100.5018, baseAmount: 15200000, usdRate: 0.027, pool: "APAC Prime" },
+  { name: "Java Remit", city: "Jakarta", country: "Indonesia", currency: "IDR", lat: -6.2088, lng: 106.8456, baseAmount: 6900000000, usdRate: 0.000061, pool: "APAC Prime" },
+  { name: "Saigon Merchant", city: "Ho Chi Minh City", country: "Vietnam", currency: "VND", lat: 10.8231, lng: 106.6297, baseAmount: 10400000000, usdRate: 0.000039, pool: "APAC Prime" },
+  { name: "Kuala Corridor", city: "Kuala Lumpur", country: "Malaysia", currency: "MYR", lat: 3.139, lng: 101.6869, baseAmount: 1880000, usdRate: 0.21, pool: "APAC Prime" },
+  { name: "Phnom Penh Rail", city: "Phnom Penh", country: "Cambodia", currency: "KHR", lat: 11.5564, lng: 104.9282, baseAmount: 1600000000, usdRate: 0.00025, pool: "APAC Prime" },
+  { name: "Dhaka Commerce", city: "Dhaka", country: "Bangladesh", currency: "BDT", lat: 23.8103, lng: 90.4125, baseAmount: 45000000, usdRate: 0.0085, pool: "APAC Prime" },
+  { name: "Karachi Clearing", city: "Karachi", country: "Pakistan", currency: "PKR", lat: 24.8607, lng: 67.0011, baseAmount: 118000000, usdRate: 0.0036, pool: "MENA Express" },
+  { name: "Nova Remit", city: "London", country: "United Kingdom", currency: "GBP", lat: 51.5072, lng: -0.1276, baseAmount: 185000, usdRate: 1.25, pool: "EU Instant" },
+  { name: "Main River Bank", city: "Frankfurt", country: "Germany", currency: "EUR", lat: 50.1109, lng: 8.6821, baseAmount: 260000, usdRate: 1.09, pool: "EU Instant" },
+  { name: "Iberia Logistics", city: "Madrid", country: "Spain", currency: "EUR", lat: 40.4168, lng: -3.7038, baseAmount: 170000, usdRate: 1.09, pool: "EU Instant" },
+  { name: "Nordic Rail", city: "Stockholm", country: "Sweden", currency: "SEK", lat: 59.3293, lng: 18.0686, baseAmount: 3100000, usdRate: 0.095, pool: "EU Instant" },
+  { name: "Alpine Vault", city: "Zurich", country: "Switzerland", currency: "CHF", lat: 47.3769, lng: 8.5417, baseAmount: 380000, usdRate: 1.11, pool: "EU Instant" },
+  { name: "Seine Settlement", city: "Paris", country: "France", currency: "EUR", lat: 48.8566, lng: 2.3522, baseAmount: 240000, usdRate: 1.09, pool: "EU Instant" },
+  { name: "Milan Treasury", city: "Milan", country: "Italy", currency: "EUR", lat: 45.4642, lng: 9.19, baseAmount: 210000, usdRate: 1.09, pool: "EU Instant" },
+  { name: "Amsterdam Netting", city: "Amsterdam", country: "Netherlands", currency: "EUR", lat: 52.3676, lng: 4.9041, baseAmount: 230000, usdRate: 1.09, pool: "EU Instant" },
+  { name: "Warsaw Clearing", city: "Warsaw", country: "Poland", currency: "PLN", lat: 52.2297, lng: 21.0122, baseAmount: 980000, usdRate: 0.25, pool: "EU Instant" },
+  { name: "Prague Bridge", city: "Prague", country: "Czech Republic", currency: "CZK", lat: 50.0755, lng: 14.4378, baseAmount: 5600000, usdRate: 0.044, pool: "EU Instant" },
+  { name: "Rio Desk", city: "Sao Paulo", country: "Brazil", currency: "BRL", lat: -23.5558, lng: -46.6396, baseAmount: 510000, usdRate: 0.19, pool: "LATAM Flow" },
+  { name: "Norte Foods", city: "Mexico City", country: "Mexico", currency: "MXN", lat: 19.4326, lng: -99.1332, baseAmount: 1617050, usdRate: 0.059, pool: "LATAM Flow" },
+  { name: "Andes Pay", city: "Santiago", country: "Chile", currency: "CLP", lat: -33.4489, lng: -70.6693, baseAmount: 420000000, usdRate: 0.0011, pool: "LATAM Flow" },
+  { name: "Plata Clearing", city: "Buenos Aires", country: "Argentina", currency: "ARS", lat: -34.6037, lng: -58.3816, baseAmount: 390000000, usdRate: 0.001, pool: "LATAM Flow" },
+  { name: "Lima Merchant", city: "Lima", country: "Peru", currency: "PEN", lat: -12.0464, lng: -77.0428, baseAmount: 1330000, usdRate: 0.27, pool: "LATAM Flow" },
+  { name: "Bogota Rail", city: "Bogota", country: "Colombia", currency: "COP", lat: 4.711, lng: -74.0721, baseAmount: 1680000000, usdRate: 0.00025, pool: "LATAM Flow" },
+  { name: "Quito Payments", city: "Quito", country: "Ecuador", currency: "USD", lat: -0.1807, lng: -78.4678, baseAmount: 310000, usdRate: 1, pool: "LATAM Flow" },
+  { name: "Montevideo Desk", city: "Montevideo", country: "Uruguay", currency: "UYU", lat: -34.9011, lng: -56.1645, baseAmount: 16100000, usdRate: 0.025, pool: "LATAM Flow" },
+  { name: "Delta Vault", city: "Dubai", country: "United Arab Emirates", currency: "AED", lat: 25.2048, lng: 55.2708, baseAmount: 1450000, usdRate: 0.272, pool: "MENA Express" },
+  { name: "Riyadh Settlement", city: "Riyadh", country: "Saudi Arabia", currency: "SAR", lat: 24.7136, lng: 46.6753, baseAmount: 2100000, usdRate: 0.267, pool: "MENA Express" },
+  { name: "Bosphorus Trade", city: "Istanbul", country: "Turkey", currency: "TRY", lat: 41.0082, lng: 28.9784, baseAmount: 18500000, usdRate: 0.031, pool: "MENA Express" },
+  { name: "Nile Exchange", city: "Cairo", country: "Egypt", currency: "EGP", lat: 30.0444, lng: 31.2357, baseAmount: 22600000, usdRate: 0.021, pool: "MENA Express" },
+  { name: "Lagos Commerce", city: "Lagos", country: "Nigeria", currency: "NGN", lat: 6.5244, lng: 3.3792, baseAmount: 720000000, usdRate: 0.00062, pool: "MENA Express" },
+  { name: "Nairobi Mobile", city: "Nairobi", country: "Kenya", currency: "KES", lat: -1.2921, lng: 36.8219, baseAmount: 64000000, usdRate: 0.0077, pool: "MENA Express" },
+  { name: "Cape Treasury", city: "Cape Town", country: "South Africa", currency: "ZAR", lat: -33.9249, lng: 18.4241, baseAmount: 8200000, usdRate: 0.055, pool: "MENA Express" },
+  { name: "Accra Mobile", city: "Accra", country: "Ghana", currency: "GHS", lat: 5.6037, lng: -0.187, baseAmount: 5800000, usdRate: 0.083, pool: "MENA Express" },
+  { name: "Casablanca Flow", city: "Casablanca", country: "Morocco", currency: "MAD", lat: 33.5731, lng: -7.5898, baseAmount: 4200000, usdRate: 0.1, pool: "MENA Express" },
+  { name: "Tel Aviv Net", city: "Tel Aviv", country: "Israel", currency: "ILS", lat: 32.0853, lng: 34.7818, baseAmount: 1420000, usdRate: 0.27, pool: "MENA Express" },
+  { name: "Manila Corridor", city: "Manila", country: "Philippines", currency: "PHP", lat: 14.5995, lng: 120.9842, baseAmount: 26000000, usdRate: 0.017, pool: "APAC Prime" },
+  { name: "Auckland Bridge", city: "Auckland", country: "New Zealand", currency: "NZD", lat: -36.8509, lng: 174.7645, baseAmount: 540000, usdRate: 0.61, pool: "APAC Prime" },
+]
