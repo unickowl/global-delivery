@@ -5,7 +5,6 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js"
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js"
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js"
 import type { Transaction } from "../../data/transactions"
-import { naturalEarthLandPoints } from "../../data/landPoints"
 import { FLIGHT_DURATION } from "../../App"
 import type { GlobeSettingsState } from "../ArcOverlay"
 import {
@@ -24,6 +23,7 @@ import {
 import { isFrontHemisphere } from "./lib/projection"
 import { easeRotationToward, solveRotationForScreenPoint } from "./lib/rotation"
 import { cameraFocusPointInto, createArcPoints, liftedPoint, liftedPointInto } from "./lib/route"
+import { createLandPoints } from "./lib/landPoints"
 
 type GlobeMode = "monitor" | "focus" | "flight" | "success"
 
@@ -40,7 +40,6 @@ type ThreeGlobeCanvasProps = {
   thetaRef: MutableRefObject<number>
 }
 
-type LandPoint = { vec: Vec3; seed: number; coast: boolean }
 type FlowPhase = "arriving" | "flying" | "landing" | "drawing" | "breathing" | "fading"
 type FlowNode = { city: string; country: string; lat: number; lng: number; vec: Vec3 }
 type FocusPhase = "idle" | "approach-source" | "source-label" | "flight" | "target-label"
@@ -65,14 +64,6 @@ type FlowTx = {
   arcHeight: number
   arcPoints: Vec3[]
   animations: Array<ReturnType<typeof animate>>
-}
-
-function createLandPoints(): LandPoint[] {
-  return naturalEarthLandPoints.map(([lat, lng, source]) => ({
-    vec: toVec3(lat, lng),
-    seed: Math.abs(Math.sin(lat * 12.9898 + lng * 78.233)),
-    coast: source === 1,
-  }))
 }
 
 function logNormalAmount() {
