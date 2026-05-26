@@ -8,7 +8,7 @@ import {
   X,
   RotateCw,
 } from "lucide-react"
-import { ThreeGlobeCanvas } from "./components/ThreeGlobeCanvas"
+import { ThreeGlobeCanvas } from "./components/globe"
 import { ArcOverlay, type GlobeSettingsState } from "./components/ArcOverlay"
 import { GlobeSettings } from "./components/GlobeSettings"
 import { FuturisticPanel, FuturisticPanelProvider, useBoot } from "./components/FuturisticPanel"
