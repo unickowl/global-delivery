@@ -1,3 +1,4 @@
+import type { Transaction } from "../../data/transactions"
 import {
   applyLifecycleUpdate,
   appendLiveTransaction,
@@ -18,7 +19,7 @@ export class MockTransactionSource implements TransactionSource {
   private seed = Math.floor(Math.random() * 1_000_000)
   private sequence = this.seed
 
-  async initial({ maxTransactions }: TransactionSourceOptions) {
+  initial({ maxTransactions }: TransactionSourceOptions): Transaction[] {
     const max = clampMax(maxTransactions)
     this.sequence = this.seed + max
     return initialTransactions(max, this.seed)
@@ -30,7 +31,6 @@ export class MockTransactionSource implements TransactionSource {
   ): TransactionSourceUnsubscribe {
     const max = clampMax(maxTransactions)
     let current = initialTransactions(max, this.seed)
-    onEvent({ kind: "replace", transactions: current })
 
     const appendTimer = window.setInterval(() => {
       this.sequence += 1

@@ -27,13 +27,12 @@ export function useLiveDashboard({
   streamIntervalMs = 1400,
 }: LiveDashboardOptions): LiveDashboard {
   const [tick, setTick] = useState(() => performance.now())
-  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [transactions, setTransactions] = useState<Transaction[]>(() =>
+    source.initial({ maxTransactions }),
+  )
 
   useEffect(() => {
-    let cancelled = false
-    source.initial({ maxTransactions }).then((txs) => {
-      if (!cancelled) setTransactions(txs)
-    })
+    setTransactions(source.initial({ maxTransactions }))
     const unsubscribe = source.subscribe(
       { maxTransactions, streamIntervalMs },
       (event) => {
@@ -52,10 +51,7 @@ export function useLiveDashboard({
         }
       },
     )
-    return () => {
-      cancelled = true
-      unsubscribe()
-    }
+    return unsubscribe
   }, [source, maxTransactions, streamIntervalMs])
 
   useEffect(() => {

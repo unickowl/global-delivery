@@ -13,7 +13,7 @@ export type TransactionEvent =
 export type TransactionSourceUnsubscribe = () => void
 
 export interface TransactionSource {
-  initial(options: TransactionSourceOptions): Promise<Transaction[]>
+  initial(options: TransactionSourceOptions): Transaction[]
   subscribe(
     options: TransactionSourceOptions,
     onEvent: (event: TransactionEvent) => void,
