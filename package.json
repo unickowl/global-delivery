@@ -8,7 +8,9 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "lint": "oxlint src"
+    "lint": "oxlint src",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
@@ -20,10 +22,14 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
+    "happy-dom": "^20.9.0",
     "oxlint": "^1.66.0",
     "rolldown-vite": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "^4.1.7"
   }
 }
