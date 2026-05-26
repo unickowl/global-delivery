@@ -21,6 +21,8 @@ import {
   toVec3, setVec3FromLatLng, toVector3, copyVec3,
   slerpInto, normalizeVec,
 } from "./lib/vec3"
+import { isFrontHemisphere } from "./lib/projection"
+import { easeRotationToward, solveRotationForScreenPoint } from "./lib/rotation"
 
 type GlobeMode = "monitor" | "focus" | "flight" | "success"
 
@@ -62,113 +64,6 @@ type FlowTx = {
   arcHeight: number
   arcPoints: Vec3[]
   animations: Array<ReturnType<typeof animate>>
-}
-
-function rotationTargetForLatLng(lat: number, lng: number) {
-  return {
-    phi: Math.PI / 2 - lng * (Math.PI / 180),
-    theta: clamp(lat * (Math.PI / 180), -MAX_VIEW_THETA, MAX_VIEW_THETA),
-  }
-}
-
-function easeRotationToward(phiRef: MutableRefObject<number>, thetaRef: MutableRefObject<number>, targetPhi: number, targetTheta: number, strength: number) {
-  let delta = targetPhi - phiRef.current
-  delta = ((delta + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI
-  phiRef.current += delta * strength
-  thetaRef.current += (targetTheta - thetaRef.current) * strength
-}
-
-type ProjectedPoint = { x: number; y: number; z: number }
-
-const projectionScratch = new THREE.Vector3()
-const projectionEuler = new THREE.Euler(0, 0, 0, "YXZ")
-
-function projectedNdcForRotation(vec: Vec3, phi: number, theta: number, scale: number, camera: THREE.Camera, out: ProjectedPoint) {
-  const point = copyVec3(projectionScratch, vec, scale)
-  projectionEuler.set(-theta, phi, 0, "YXZ")
-  point.applyEuler(projectionEuler)
-  const depth = point.z
-  point.project(camera)
-  out.x = point.x
-  out.y = point.y
-  out.z = depth
-  return out
-}
-
-function rotatedDepth(vec: Vec3, phi: number, theta: number) {
-  const point = copyVec3(projectionScratch, vec, 1)
-  projectionEuler.set(-theta, phi, 0, "YXZ")
-  point.applyEuler(projectionEuler)
-  return point.z
-}
-
-function frontFacingRotationSeed(vec: Vec3, startPhi: number, startTheta: number) {
-  const target = rotationTargetForVec(vec)
-  const candidates = [
-    { phi: startPhi, theta: startTheta },
-    target,
-    { ...target, phi: target.phi + Math.PI * 2 },
-    { ...target, phi: target.phi - Math.PI * 2 },
-  ]
-
-  return candidates
-    .filter((candidate) => rotatedDepth(vec, candidate.phi, candidate.theta) > 0.08)
-    .sort((a, b) => {
-      const da = Math.abs((((a.phi - startPhi) + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI) + Math.abs(a.theta - startTheta)
-      const db = Math.abs((((b.phi - startPhi) + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI) + Math.abs(b.theta - startTheta)
-      return da - db
-    })[0] ?? rotationTargetForVec(vec)
-}
-
-function rotationTargetForVec(vec: Vec3) {
-  const lat = Math.asin(clamp(vec[1], -1, 1)) * (180 / Math.PI)
-  const lng = Math.atan2(vec[2], -vec[0]) * (180 / Math.PI)
-  return rotationTargetForLatLng(lat, lng)
-}
-
-function solveRotationForScreenPoint(
-  vec: Vec3,
-  startPhi: number,
-  startTheta: number,
-  camera: THREE.Camera,
-  scale: number,
-  targetX = 0,
-  targetY = 0.18,
-) {
-  const seed = frontFacingRotationSeed(vec, startPhi, startTheta)
-  let phi = seed.phi
-  let theta = seed.theta
-  const epsilon = 0.002
-  const current = { x: 0, y: 0, z: 0 }
-  const phiSample = { x: 0, y: 0, z: 0 }
-  const thetaSample = { x: 0, y: 0, z: 0 }
-  const depthCheck = { x: 0, y: 0, z: 0 }
-  for (let i = 0; i < 10; i += 1) {
-    projectedNdcForRotation(vec, phi, theta, scale, camera, current)
-    const errorX = targetX - current.x
-    const errorY = targetY - current.y
-    if (Math.abs(errorX) + Math.abs(errorY) < 0.003) break
-
-    projectedNdcForRotation(vec, phi + epsilon, theta, scale, camera, phiSample)
-    projectedNdcForRotation(vec, phi, theta + epsilon, scale, camera, thetaSample)
-    const a = (phiSample.x - current.x) / epsilon
-    const b = (thetaSample.x - current.x) / epsilon
-    const c = (phiSample.y - current.y) / epsilon
-    const d = (thetaSample.y - current.y) / epsilon
-    const determinant = a * d - b * c
-    if (Math.abs(determinant) < 0.0001) break
-
-    phi += clamp((errorX * d - b * errorY) / determinant, -0.18, 0.18)
-    theta = clamp(theta + clamp((a * errorY - errorX * c) / determinant, -0.18, 0.18), -MAX_VIEW_THETA, MAX_VIEW_THETA)
-    if (projectedNdcForRotation(vec, phi, theta, scale, camera, depthCheck).z < 0.08) {
-      const fallback = rotationTargetForVec(vec)
-      phi = fallback.phi
-      theta = fallback.theta
-      break
-    }
-  }
-
-  return { phi, theta }
 }
 
 function constrainCameraCorridor(target: Vec3, maxY = CAMERA_CORRIDOR_MAX_Y) {
@@ -846,11 +741,6 @@ function setFatSegments(line: LineSegments2, positions: Float32Array) {
 function disposeFatSegments(line: LineSegments2) {
   line.geometry.dispose()
   ;(line.material as THREE.Material).dispose()
-}
-
-function isFrontHemisphere(object: THREE.Object3D, target = new THREE.Vector3()) {
-  object.getWorldPosition(target)
-  return target.z > -0.04
 }
 
 function createGlowTexture(color: string) {
