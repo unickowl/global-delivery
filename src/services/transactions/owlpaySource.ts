@@ -14,6 +14,10 @@ const TRICKLE_MS = 1_500
 // Max new transactions that can fully drain before the next poll.
 // If a poll delivers more than this, switch to snapshot mode instead of trickle.
 const TRICKLE_BATCH_MAX = Math.floor(POLL_MS / TRICKLE_MS) // ~6
+// Grace buffer: allow this many trickle-queue leftovers before declaring a
+// backlog and switching to snapshot mode. Absorbs normal timing jitter
+// between the trickle timer and the poll interval.
+const TRICKLE_BACKLOG_MAX = 2
 
 export class OwlpayTransactionSource implements TransactionSource {
   private endpoint: string
@@ -79,7 +83,7 @@ export class OwlpayTransactionSource implements TransactionSource {
 
         // Pre-scan: how many new IDs are in this poll?
         const newTxs = next.filter((t) => !this.knownIds.has(t.id))
-        const hasBacklog = trickleQueue.length > 2
+        const hasBacklog = trickleQueue.length > TRICKLE_BACKLOG_MAX
 
         // Surge mode: too many new transactions to drain before the next poll,
         // or the previous trickle queue hasn't cleared yet.
@@ -89,10 +93,8 @@ export class OwlpayTransactionSource implements TransactionSource {
         const nextById = new Map(next.map((t) => [t.id, t]))
 
         if (surgeMode) {
-          // Register all new IDs so they aren't re-announced next poll.
-          for (const tx of newTxs) this.knownIds.add(tx.id)
           console.warn(
-            `[OwlpaySource] surge mode: backlog=${trickleQueue.length} new=${newTxs.length} — emitting replace snapshot`,
+            `[OwlpaySource] surge mode: backlog=${trickleQueue.length} new=${newTxs.length} threshold=${TRICKLE_BATCH_MAX} — emitting replace snapshot`,
           )
           trickleQueue.length = 0
           current = next.concat(current.filter((t) => !nextById.has(t.id)))

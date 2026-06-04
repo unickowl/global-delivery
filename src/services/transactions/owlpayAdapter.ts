@@ -3,6 +3,9 @@ import { COUNTRY_COORDS } from "../../data/countryCoordinates"
 import { COUNTRY_CITIES } from "../../data/countryCities"
 import type { QuoteItem } from "./owlpayTypes"
 
+// Track country codes we've already warned about to avoid log spam across polls.
+const warnedCountryCodes = new Set<string>()
+
 function cityFor(code: string): string {
   return COUNTRY_CITIES[code] ?? code
 }
@@ -30,11 +33,16 @@ export function quoteToTransaction(quote: QuoteItem): Transaction | null {
   const srcCoord = COUNTRY_COORDS[quote.sender_country]
   const dstCoord = COUNTRY_COORDS[quote.destination_country]
   if (!srcCoord || !dstCoord) {
-    const missing = [
+    const missingCodes = [
       !srcCoord && quote.sender_country,
       !dstCoord && quote.destination_country,
-    ].filter(Boolean).join(", ")
-    console.warn(`[owlpayAdapter] dropping quote ${quote.id} — no coordinates for: ${missing}`)
+    ].filter((c): c is string => typeof c === "string")
+
+    const newCodes = missingCodes.filter((c) => !warnedCountryCodes.has(c))
+    if (newCodes.length > 0) {
+      newCodes.forEach((c) => warnedCountryCodes.add(c))
+      console.warn(`[owlpayAdapter] dropping quotes with unknown country coordinates: ${newCodes.join(", ")} (quote ${quote.id})`)
+    }
     return null
   }
 
