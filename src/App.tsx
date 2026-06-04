@@ -733,7 +733,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
           )}
         </FuturisticPanel>
 
-        {mode === "focus" && <FocusTelemetry key={selected.id} transaction={selected} forceCollapsed={cardsCollapsed} />}
+        {mode === "focus" && live.transactions.length > 0 && <FocusTelemetry key={selected.id} transaction={selected} forceCollapsed={cardsCollapsed} />}
 
         {mode === "monitor" && (
           <div className="dashboard-rail" aria-label="Operational dashboard charts">
@@ -757,7 +757,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
           scanning
           forceCollapsed={cardsCollapsed}
         >
-          {({ active, loading }) => loading ? <PanelLoading label="loading track" /> : active ? (
+          {({ active, loading }) => loading ? <PanelLoading label="loading track" /> : active && live.transactions.length > 0 ? (
             <>
               <div className="detail-route">
                 <div className="detail-from-to">
