@@ -9,6 +9,11 @@ import type {
 } from "./types"
 
 const POLL_MS = 10_000
+// Release one new transaction every TRICKLE_MS so the queue looks like a live stream.
+const TRICKLE_MS = 1_500
+// Max new transactions that can fully drain before the next poll.
+// If a poll delivers more than this, switch to snapshot mode instead of trickle.
+const TRICKLE_BATCH_MAX = Math.floor(POLL_MS / TRICKLE_MS) // ~6
 
 export class OwlpayTransactionSource implements TransactionSource {
   private endpoint: string
@@ -33,6 +38,16 @@ export class OwlpayTransactionSource implements TransactionSource {
     let firstPollDone = false
     let current: Transaction[] = []
 
+    // Trickle queue: new transactions are enqueued here and released one
+    // per TRICKLE_MS so the queue panel looks like a live stream rather than
+    // a batch dump every 10 seconds.
+    const trickleQueue: Transaction[] = []
+    const trickleTimer = window.setInterval(() => {
+      if (cancelled) return
+      const tx = trickleQueue.shift()
+      if (tx) onEvent({ kind: "append", transaction: tx })
+    }, TRICKLE_MS)
+
     const poll = async () => {
       if (cancelled) return
       try {
@@ -52,7 +67,8 @@ export class OwlpayTransactionSource implements TransactionSource {
           .filter((t): t is Transaction => t !== null)
 
         if (!firstPollDone) {
-          // First successful poll — replace everything and warm the cache.
+          // First successful poll — replace everything at once and warm the cache.
+          // No trickle here: initial load should populate the globe immediately.
           firstPollDone = true
           this.knownIds = new Set(next.map((t) => t.id))
           current = next
@@ -61,23 +77,40 @@ export class OwlpayTransactionSource implements TransactionSource {
           return
         }
 
-        // Diff: new IDs → append, existing with changed status → update
+        // Pre-scan: how many new IDs are in this poll?
+        const newTxs = next.filter((t) => !this.knownIds.has(t.id))
+        const hasBacklog = trickleQueue.length > 0
+
+        // Surge mode: too many new transactions to drain before the next poll,
+        // or the previous trickle queue hasn't cleared yet.
+        // → Discard pending trickle, emit a full snapshot instead.
+        const surgeMode = hasBacklog || newTxs.length > TRICKLE_BATCH_MAX
+
         const nextById = new Map(next.map((t) => [t.id, t]))
-        for (const tx of next) {
-          if (!this.knownIds.has(tx.id)) {
-            this.knownIds.add(tx.id)
-            onEvent({ kind: "append", transaction: tx })
-          } else {
-            const prev = current.find((t) => t.id === tx.id)
-            if (prev && prev.status !== tx.status) {
-              onEvent({ kind: "update", transaction: tx })
+
+        if (surgeMode) {
+          // Register all new IDs so they aren't re-announced next poll.
+          for (const tx of newTxs) this.knownIds.add(tx.id)
+          trickleQueue.length = 0
+          current = next.concat(current.filter((t) => !nextById.has(t.id)))
+          this.cache = current
+          onEvent({ kind: "replace", transactions: current })
+        } else {
+          // Normal trickle mode: status changes fire immediately, new IDs queue up.
+          for (const tx of next) {
+            if (!this.knownIds.has(tx.id)) {
+              this.knownIds.add(tx.id)
+              trickleQueue.push(tx)
+            } else {
+              const prev = current.find((t) => t.id === tx.id)
+              if (prev && prev.status !== tx.status) {
+                onEvent({ kind: "update", transaction: tx })
+              }
             }
           }
+          current = next.concat(current.filter((t) => !nextById.has(t.id)))
+          this.cache = current
         }
-        current = next.concat(
-          current.filter((t) => !nextById.has(t.id)),
-        )
-        this.cache = current
       } catch (err) {
         console.error("[OwlpaySource] poll error:", err)
       }
@@ -89,6 +122,7 @@ export class OwlpayTransactionSource implements TransactionSource {
     return () => {
       cancelled = true
       window.clearInterval(timer)
+      window.clearInterval(trickleTimer)
     }
   }
 }
