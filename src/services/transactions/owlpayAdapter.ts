@@ -51,7 +51,7 @@ export function quoteToTransaction(quote: QuoteItem): Transaction | null {
     exchangeRate: srcAmount > 0 ? dstAmount / srcAmount : 1,
     fee: 0,
     rail: "WIRE",
-    eta: status === "settled" ? "00:00" : "—",
+    eta: "00:00",
     riskScore: quote.is_locked ? 50 : 0,
     liquidityPool: "OwlPay Pool",
     createdAt: quote.created_at,
