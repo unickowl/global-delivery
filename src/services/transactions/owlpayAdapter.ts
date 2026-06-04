@@ -6,6 +6,9 @@ import type { QuoteItem } from "./owlpayTypes"
 // Track country codes we've already warned about to avoid log spam across polls.
 const warnedCountryCodes = new Set<string>()
 
+// Track payment methods we've already warned about to avoid log spam across polls.
+const warnedRailMethods = new Set<string>()
+
 function cityFor(code: string): string {
   return COUNTRY_CITIES[code] ?? code
 }
@@ -23,7 +26,10 @@ function railFor(method: string | null | undefined): Transaction["rail"] {
     case "crypto":
     case "":       return "WIRE"
     default:
-      console.warn(`[owlpayAdapter] unknown payment_method "${method}" — defaulting to WIRE`)
+      if (!warnedRailMethods.has(method ?? "")) {
+        warnedRailMethods.add(method ?? "")
+        console.warn(`[owlpayAdapter] unknown payment_method "${method}" — defaulting to WIRE`)
+      }
       return "WIRE"
   }
 }
@@ -33,10 +39,9 @@ export function quoteToTransaction(quote: QuoteItem): Transaction | null {
   const srcCoord = COUNTRY_COORDS[quote.sender_country]
   const dstCoord = COUNTRY_COORDS[quote.destination_country]
   if (!srcCoord || !dstCoord) {
-    const missingCodes = [
-      !srcCoord && quote.sender_country,
-      !dstCoord && quote.destination_country,
-    ].filter((c): c is string => typeof c === "string")
+    const missingCodes: string[] = []
+    if (!srcCoord) missingCodes.push(quote.sender_country)
+    if (!dstCoord) missingCodes.push(quote.destination_country)
 
     const newCodes = missingCodes.filter((c) => !warnedCountryCodes.has(c))
     if (newCodes.length > 0) {
