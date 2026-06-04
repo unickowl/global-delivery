@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
 import type { Transaction } from "../data/transactions"
-import { nextPools, wave } from "../services/transactions/generators"
 import type { TransactionSource } from "../services/transactions"
 
 type PoolMetric = { name: string; utilization: number }
@@ -26,7 +25,6 @@ export function useLiveDashboard({
   maxTransactions,
   streamIntervalMs = 1400,
 }: LiveDashboardOptions): LiveDashboard {
-  const [tick, setTick] = useState(() => performance.now())
   const [transactions, setTransactions] = useState<Transaction[]>(() =>
     source.initial({ maxTransactions }),
   )
@@ -54,28 +52,39 @@ export function useLiveDashboard({
     return unsubscribe
   }, [source, maxTransactions, streamIntervalMs])
 
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setTick(performance.now())
-    }, 700)
-    return () => window.clearInterval(interval)
-  }, [])
-
   return useMemo(() => {
-    const t = tick / 1000
-    const totalVisible = transactions.reduce(
+    const cutoff24h = Date.now() - 24 * 60 * 60 * 1000
+
+    const recent = transactions.filter((tx) =>
+      tx.createdAt ? new Date(tx.createdAt).getTime() >= cutoff24h : true,
+    )
+
+    const volume24h = recent.reduce(
       (sum, tx) => sum + Math.max(tx.source.amount, tx.target.amount),
       0,
     )
+
+    const routing = transactions.filter((tx) => tx.status === "routing")
+    const failed = transactions.filter((tx) => tx.status === "failed")
+
+    const railUptime =
+      transactions.length > 0
+        ? ((transactions.length - failed.length) / transactions.length) * 100
+        : 100
+
+    const utilization =
+      transactions.length > 0
+        ? Math.round((routing.length / transactions.length) * 100)
+        : 0
+
     return {
       transactions,
-      volume24h: totalVisible * (34.5 + wave(t, 1.4, 0.08) * 2.2),
-      volumeChange: 24 + wave(t, 0.2, 0.32) * 8 + wave(t, 2.8, 0.71) * 2,
-      medianSettlementSeconds:
-        58 + wave(t, 1.1, 0.36) * 19 + wave(t, 3.2, 0.9) * 6,
-      pools: nextPools(t),
-      railUptime: 99.84 + wave(t, 0.7, 0.2) * 0.08,
-      activeFlows: transactions.filter((tx) => tx.status === "routing").length,
+      volume24h,
+      volumeChange: 0,
+      medianSettlementSeconds: 62,
+      pools: [{ name: "OwlPay Pool", utilization }],
+      railUptime,
+      activeFlows: routing.length,
     }
-  }, [tick, transactions])
+  }, [transactions])
 }
