@@ -79,7 +79,7 @@ export class OwlpayTransactionSource implements TransactionSource {
 
         // Pre-scan: how many new IDs are in this poll?
         const newTxs = next.filter((t) => !this.knownIds.has(t.id))
-        const hasBacklog = trickleQueue.length > 0
+        const hasBacklog = trickleQueue.length > 2
 
         // Surge mode: too many new transactions to drain before the next poll,
         // or the previous trickle queue hasn't cleared yet.
@@ -91,18 +91,25 @@ export class OwlpayTransactionSource implements TransactionSource {
         if (surgeMode) {
           // Register all new IDs so they aren't re-announced next poll.
           for (const tx of newTxs) this.knownIds.add(tx.id)
+          console.warn(
+            `[OwlpaySource] surge mode: backlog=${trickleQueue.length} new=${newTxs.length} — emitting replace snapshot`,
+          )
           trickleQueue.length = 0
           current = next.concat(current.filter((t) => !nextById.has(t.id)))
           this.cache = current
+          this.knownIds = new Set(current.map((t) => t.id))
           onEvent({ kind: "replace", transactions: current })
         } else {
+          // Build an O(1) lookup for status-change detection.
+          const currentById = new Map(current.map((t) => [t.id, t]))
+
           // Normal trickle mode: status changes fire immediately, new IDs queue up.
           for (const tx of next) {
             if (!this.knownIds.has(tx.id)) {
               this.knownIds.add(tx.id)
               trickleQueue.push(tx)
             } else {
-              const prev = current.find((t) => t.id === tx.id)
+              const prev = currentById.get(tx.id)
               if (prev && prev.status !== tx.status) {
                 onEvent({ kind: "update", transaction: tx })
               }
@@ -110,6 +117,8 @@ export class OwlpayTransactionSource implements TransactionSource {
           }
           current = next.concat(current.filter((t) => !nextById.has(t.id)))
           this.cache = current
+          // Keep knownIds bounded to the active window.
+          this.knownIds = new Set(current.map((t) => t.id))
         }
       } catch (err) {
         console.error("[OwlpaySource] poll error:", err)

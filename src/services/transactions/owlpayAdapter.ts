@@ -11,12 +11,17 @@ function cityFor(code: string): string {
 // API values seen: "wire", "ach", "sepa", "pix", "swift", "fps", "crypto".
 function railFor(method: string | null | undefined): Transaction["rail"] {
   switch ((method ?? "").toLowerCase()) {
-    case "ach":   return "ACH"
-    case "sepa":  return "SEPA"
-    case "pix":   return "PIX"
-    case "swift": return "SWIFT"
-    case "fps":   return "FPS"
-    default:      return "WIRE"
+    case "ach":    return "ACH"
+    case "sepa":   return "SEPA"
+    case "pix":    return "PIX"
+    case "swift":  return "SWIFT"
+    case "fps":    return "FPS"
+    case "wire":
+    case "crypto":
+    case "":       return "WIRE"
+    default:
+      console.warn(`[owlpayAdapter] unknown payment_method "${method}" — defaulting to WIRE`)
+      return "WIRE"
   }
 }
 
@@ -24,7 +29,14 @@ function railFor(method: string | null | undefined): Transaction["rail"] {
 export function quoteToTransaction(quote: QuoteItem): Transaction | null {
   const srcCoord = COUNTRY_COORDS[quote.sender_country]
   const dstCoord = COUNTRY_COORDS[quote.destination_country]
-  if (!srcCoord || !dstCoord) return null
+  if (!srcCoord || !dstCoord) {
+    const missing = [
+      !srcCoord && quote.sender_country,
+      !dstCoord && quote.destination_country,
+    ].filter(Boolean).join(", ")
+    console.warn(`[owlpayAdapter] dropping quote ${quote.id} — no coordinates for: ${missing}`)
+    return null
+  }
 
   const status: Transaction["status"] =
     quote.payment_status === "paid"
