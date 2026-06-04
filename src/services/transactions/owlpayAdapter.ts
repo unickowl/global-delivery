@@ -7,6 +7,19 @@ function cityFor(code: string): string {
   return COUNTRY_CITIES[code] ?? code
 }
 
+// Map payment_method from API to the Transaction rail enum.
+// API values seen: "wire", "ach", "sepa", "pix", "swift", "fps", "crypto".
+function railFor(method: string | null | undefined): Transaction["rail"] {
+  switch ((method ?? "").toLowerCase()) {
+    case "ach":   return "ACH"
+    case "sepa":  return "SEPA"
+    case "pix":   return "PIX"
+    case "swift": return "SWIFT"
+    case "fps":   return "FPS"
+    default:      return "WIRE"
+  }
+}
+
 // Returns null when either country code has no known coordinates (cannot render on globe).
 export function quoteToTransaction(quote: QuoteItem): Transaction | null {
   const srcCoord = COUNTRY_COORDS[quote.sender_country]
@@ -50,7 +63,7 @@ export function quoteToTransaction(quote: QuoteItem): Transaction | null {
     },
     exchangeRate: srcAmount > 0 ? dstAmount / srcAmount : 1,
     fee: 0,
-    rail: "WIRE",
+    rail: railFor(quote.payment_method),
     eta: "00:00",
     riskScore: quote.is_locked ? 50 : 0,
     liquidityPool: "OwlPay Pool",

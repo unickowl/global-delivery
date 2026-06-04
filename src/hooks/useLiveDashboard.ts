@@ -7,8 +7,8 @@ type PoolMetric = { name: string; utilization: number }
 export type LiveDashboard = {
   transactions: Transaction[]
   volume24h: number
-  volumeChange: number
-  medianSettlementSeconds: number
+  volumeChange: number | null
+  medianSettlementSeconds: number | null
   pools: PoolMetric[]
   railUptime: number
   activeFlows: number
@@ -80,8 +80,8 @@ export function useLiveDashboard({
     return {
       transactions,
       volume24h,
-      volumeChange: 0,
-      medianSettlementSeconds: 62,
+      volumeChange: null,
+      medianSettlementSeconds: null,
       pools: [{ name: "OwlPay Pool", utilization }],
       railUptime,
       activeFlows: routing.length,

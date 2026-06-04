@@ -13,14 +13,16 @@ const POLL_MS = 10_000
 export class OwlpayTransactionSource implements TransactionSource {
   private endpoint: string
   private knownIds = new Set<string>()
+  private cache: Transaction[] = []
 
   constructor(endpoint: string) {
     this.endpoint = endpoint
   }
 
-  // Returns empty synchronously; real data arrives via the first replace event.
-  initial(_options: TransactionSourceOptions): Transaction[] {
-    return []
+  // Returns cached transactions from the last successful poll.
+  // Empty on first load; populated by the pre-subscription in App during boot.
+  initial({ maxTransactions }: TransactionSourceOptions): Transaction[] {
+    return this.cache.slice(0, maxTransactions)
   }
 
   subscribe(
@@ -50,10 +52,11 @@ export class OwlpayTransactionSource implements TransactionSource {
           .filter((t): t is Transaction => t !== null)
 
         if (!firstPollDone) {
-          // First successful poll — replace everything
+          // First successful poll — replace everything and warm the cache.
           firstPollDone = true
           this.knownIds = new Set(next.map((t) => t.id))
           current = next
+          this.cache = next
           onEvent({ kind: "replace", transactions: next })
           return
         }
@@ -74,6 +77,7 @@ export class OwlpayTransactionSource implements TransactionSource {
         current = next.concat(
           current.filter((t) => !nextById.has(t.id)),
         )
+        this.cache = current
       } catch (err) {
         console.error("[OwlpaySource] poll error:", err)
       }

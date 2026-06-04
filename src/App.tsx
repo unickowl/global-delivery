@@ -65,14 +65,16 @@ export const DEFAULT_BOOT_SETTINGS: BootSettingsState = {
 export function StartupLoading({
   onComplete,
   settings,
+  dataReady,
 }: {
   onComplete: () => void
   settings: BootSettingsState
+  dataReady: boolean
 }) {
   return (
     <TerminalBoot
       onComplete={onComplete}
-      ready={!settings.mockSlowApi}
+      ready={!settings.mockSlowApi && dataReady}
       minDurationMs={settings.minDurationMs}
       lineRevealMs={settings.lineRevealMs}
       settleMs={settings.settleMs}
@@ -194,7 +196,7 @@ function FocusTelemetry({ transaction, forceCollapsed }: { transaction: Transact
     ["STABLECOIN", stableLabel],
     ["RAIL", transaction.rail],
     ["AMOUNT", formatCompactMoney(amount)],
-    ["FX / FEE", `${transaction.exchangeRate} · ${formatMoney(transaction.fee, "USD")}`],
+    ["FX / FEE", `${transaction.exchangeRate} · ${transaction.fee > 0 ? formatMoney(transaction.fee, "USD") : "—"}`],
     ["RISK / POOL", `${transaction.riskScore} · ${transaction.liquidityPool}`],
   ]
 
@@ -295,7 +297,7 @@ function FlowHealthCard({
   medianSettlementSeconds,
 }: {
   transactions: Transaction[]
-  medianSettlementSeconds: number
+  medianSettlementSeconds: number | null
 }) {
   const settled = transactions.filter((tx) => tx.status === "settled").length
   const failed = transactions.filter((tx) => tx.status === "failed").length
@@ -334,8 +336,8 @@ function FlowHealthCard({
         ))}
       </div>
       <div className="dash-mini-grid">
-        <span><b>AVG</b>{formatEta(medianSettlementSeconds)}</span>
-        <span><b>P95</b>{formatEta(p95Eta)}</span>
+        <span><b>AVG</b>{medianSettlementSeconds != null ? formatEta(medianSettlementSeconds) : "—"}</span>
+        <span><b>P95</b>—</span>
       </div>
     </div>
   )
@@ -392,22 +394,25 @@ function LiveVolumeCard({
 }
 
 function ChainAssetMixCard({ chains, assets }: { chains: MixItem[]; assets: MixItem[] }) {
+  const hasChainData = chains.some((c) => c.name !== "FIAT")
   return (
     <div className="dash-card-inner">
       <div className="dash-card-head">
-        <span>Chain / Asset Mix</span>
-        <strong>{chains[0]?.name ?? "N/A"}</strong>
+        <span>Asset Mix</span>
+        <strong>{hasChainData ? chains[0]?.name : assets[0]?.name ?? "—"}</strong>
       </div>
-      <div className="mix-section">
-        <span className="mix-title">CHAIN</span>
-        {chains.map((item) => (
-          <div className="mix-row" key={item.name}>
-            <span>{item.name}</span>
-            <i><b style={{ width: `${item.pct}%` }} />{item.failed > 0 && <em style={{ left: `${Math.min(96, item.pct)}%` }} />}</i>
-            <strong>{Math.round(item.pct)}%</strong>
-          </div>
-        ))}
-      </div>
+      {hasChainData && (
+        <div className="mix-section">
+          <span className="mix-title">CHAIN</span>
+          {chains.map((item) => (
+            <div className="mix-row" key={item.name}>
+              <span>{item.name}</span>
+              <i><b style={{ width: `${item.pct}%` }} />{item.failed > 0 && <em style={{ left: `${Math.min(96, item.pct)}%` }} />}</i>
+              <strong>{Math.round(item.pct)}%</strong>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="asset-strip" aria-label="Stablecoin mix">
         {assets.map((item) => (
           <span key={item.name} style={{ flexGrow: Math.max(1, item.count) }}>
@@ -667,8 +672,8 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01 // OPS" forceCollapsed={cardsCollapsed}>
           {[
             ["KYT", `${live.transactions.filter((tx) => tx.riskScore >= 30 || tx.status === "failed").length} watch`],
-            ["LIQ", `${Math.max(...live.pools.map((pool) => pool.utilization))}% peak`],
-            ["RAIL", `${live.transactions.filter((tx) => tx.status === "failed").length} fail`],
+            ["LIQ", `${Math.max(0, ...live.pools.map((pool) => pool.utilization))}% peak`],
+            ["RAIL", live.transactions.some((tx) => tx.status === "failed") ? `${live.transactions.filter((tx) => tx.status === "failed").length} fail` : "—"],
           ].map(([name, value]) => (
             <div className="magi-node" key={name}>
               <span className="magi-name">{name}</span>
@@ -682,9 +687,11 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
           <div className="hud-label">Network Load</div>
           <div className="metric-item">
             <div className="metric-val">{formatCompactMoney(live.volume24h)}</div>
-            <div className="metric-change">{live.volumeChange >= 0 ? "+" : ""}{live.volumeChange.toFixed(1)}% ▲</div>
+            {live.volumeChange != null && (
+              <div className="metric-change">{live.volumeChange >= 0 ? "+" : ""}{live.volumeChange.toFixed(1)}% ▲</div>
+            )}
           </div>
-          <Metric label="Settlement" value={formatEta(live.medianSettlementSeconds)} />
+          <Metric label="Settlement" value={live.medianSettlementSeconds != null ? formatEta(live.medianSettlementSeconds) : "—"} />
           <Metric label="Active Flows" value={live.activeFlows.toString()} accent="var(--hud-green)" />
         </FuturisticPanel>
 
@@ -771,7 +778,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
                 </div>
                 <div className="detail-stat">
                   <span className="ds-label">FEE</span>
-                  <span className="ds-val"><ScrambleText value={formatMoney(selected.fee, "USD")} /></span>
+                  <span className="ds-val">{selected.fee > 0 ? <ScrambleText value={formatMoney(selected.fee, "USD")} /> : "—"}</span>
                 </div>
                 <div className="detail-stat">
                   <span className="ds-label">RAIL</span>
@@ -794,6 +801,9 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
   )
 }
 
+// True when VITE_TRANSACTION_SOURCE is NOT owlpay (mock has synchronous initial data).
+const SOURCE_IS_SYNC = import.meta.env.VITE_TRANSACTION_SOURCE !== "owlpay"
+
 export function App() {
   const [startupComplete, setStartupComplete] = useState(false)
   const [everCompleted, setEverCompleted] = useState(false)
@@ -806,6 +816,21 @@ export function App() {
     "owlpay.globeSettings",
     DEFAULT_GLOBE_SETTINGS,
   )
+
+  // For async sources (owlpay), pre-subscribe during boot so the first API poll
+  // runs in parallel with the boot animation. dataReady gates TerminalBoot's
+  // completion — the globe won't open until the first batch of data is cached.
+  const [dataReady, setDataReady] = useState(SOURCE_IS_SYNC)
+
+  useEffect(() => {
+    if (SOURCE_IS_SYNC || startupComplete) return
+    setDataReady(false)
+    const unsub = transactionSource.subscribe(
+      { maxTransactions: 300 },
+      () => setDataReady(true),
+    )
+    return unsub
+  }, [startupComplete, bootEpoch])
 
   const completeStartup = useCallback(() => {
     setStartupComplete(true)
@@ -821,7 +846,7 @@ export function App() {
     <>
       {startupComplete && <MonitorApp globeSettings={globeSettings} />}
       {!startupComplete && (
-        <StartupLoading key={bootEpoch} onComplete={completeStartup} settings={bootSettings} />
+        <StartupLoading key={bootEpoch} onComplete={completeStartup} settings={bootSettings} dataReady={dataReady} />
       )}
       {everCompleted && (
         <GlobeSettings

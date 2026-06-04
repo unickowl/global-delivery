@@ -14,6 +14,7 @@ export type QuoteItem = {
   is_locked: boolean
   type: "deposit" | "withdrawal"
   created_at: string
+  payment_method?: string | null
 }
 
 export type QuoteListResponse = {
