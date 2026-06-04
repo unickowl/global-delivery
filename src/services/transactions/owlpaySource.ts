@@ -12,6 +12,7 @@ const POLL_MS = 10_000
 
 export class OwlpayTransactionSource implements TransactionSource {
   private endpoint: string
+  private firstPollDone = false
   private knownIds = new Set<string>()
   private current: Transaction[] = []
 
@@ -46,8 +47,9 @@ export class OwlpayTransactionSource implements TransactionSource {
           .map(quoteToTransaction)
           .filter((t): t is Transaction => t !== null)
 
-        if (this.knownIds.size === 0) {
+        if (!this.firstPollDone) {
           // First successful poll — replace everything
+          this.firstPollDone = true
           this.knownIds = new Set(next.map((t) => t.id))
           this.current = next
           onEvent({ kind: "replace", transactions: next })
