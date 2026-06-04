@@ -21,6 +21,7 @@ export type Transaction = {
   eta: string
   riskScore: number
   liquidityPool: string
+  createdAt?: string
 }
 
 export const transactions: Transaction[] = [
