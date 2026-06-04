@@ -18,10 +18,12 @@ import { createTransactionSource } from "./services/transactions"
 import { cn, formatCompactMoney, formatEta, formatMoney } from "./lib/utils"
 import { usePersistentState } from "./lib/usePersistentState"
 import { TerminalBoot } from "./components/TerminalBoot"
+import { Auth } from "./components/Auth"
 
 type Mode = "monitor" | "focus"
 
 const transactionSource = createTransactionSource()
+const USE_AUTH = import.meta.env.VITE_TRANSACTION_SOURCE === "owlpay"
 
 export const FLIGHT_DURATION = 6400
 const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#%·→/"
@@ -815,7 +817,7 @@ export function App() {
     setStartupComplete(false)
   }, [])
 
-  return (
+  const content = (
     <>
       {startupComplete && <MonitorApp globeSettings={globeSettings} />}
       {!startupComplete && (
@@ -832,4 +834,5 @@ export function App() {
       )}
     </>
   )
+  return USE_AUTH ? <Auth>{content}</Auth> : content
 }
