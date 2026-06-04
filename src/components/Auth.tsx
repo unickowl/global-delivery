@@ -21,7 +21,7 @@ export function Auth({ children }: { children: ReactNode }) {
     }
     const token = getCookie(COOKIE_NAME)
     if (!token) {
-      window.location.href = `${HARBOR_URL}/api/v1/auth/internal/login?redirect_to_global_delivery=true`
+      window.location.href = `${HARBOR_URL}/api/v1/auth/internal/login?redirect_url=${encodeURIComponent(window.location.origin)}`
     } else {
       setAuthenticated(true)
     }

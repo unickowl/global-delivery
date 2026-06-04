@@ -583,8 +583,8 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
 
   const selected = useMemo(
     () => {
-      if (mode === "monitor") return live.transactions[0]
-      return live.transactions.find((tx) => tx.id === selectedId) ?? live.transactions[0]
+      if (mode === "monitor") return live.transactions[0] ?? baseTransactions[0]
+      return live.transactions.find((tx) => tx.id === selectedId) ?? live.transactions[0] ?? baseTransactions[0]
     },
     [live.transactions, mode, selectedId],
   )
