@@ -38,5 +38,5 @@
   /* === Panel geometry (rem; scales via root font-size) === */
   --size-panel-inset:  1rem;       /*  16px — panel top/left/right/bottom */
   --size-panel-narrow: 11.875rem;  /* 190px — metrics / liquidity */
-  --size-panel-wide:   18.75rem;   /* 300px — magi / transactions */
+  --size-panel-wide:   20rem;   /* 300px — magi / transactions */
 }
