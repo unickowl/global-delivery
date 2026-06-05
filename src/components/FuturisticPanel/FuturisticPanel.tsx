@@ -110,9 +110,11 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   const dragRef = useRef({ active: false, pointerId: -1, startX: 0, startY: 0, x: 0, y: 0, baseX: 0, baseY: 0 })
   const storageKey = useMemo(() => (label ? panelPositionStorageKey(label) : null), [label])
   const shapeAnimationRunRef = useRef(0)
-  // Open-progress: 0 = closed (small center square), 1 = horizontal band,
-  // 2 = fully open chamfered shape. Drives both clip-path and corner positions.
+  // Open-progress: 0 = closed, 1 = horizontal band, 2 = fully open.
   const openRef = useRef({ p: 0 })
+  // True while the panel is showing the header strip (collapsed state).
+  // Causes re-expansion to snap+flicker rather than play the center-square open.
+  const wasCollapsedRef = useRef(false)
 
   useImperativeHandle(forwardedRef, () => sizeRef.current as HTMLDivElement)
 
@@ -324,6 +326,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         // Already compact (re-render while collapsed) — snap directly.
         applyHeaderStrip()
         openRef.current.p = 0
+        wasCollapsedRef.current = true
         return
       }
 
@@ -342,6 +345,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         if (shapeAnimationRunRef.current !== runId) return
         applyHeaderStrip()
         openRef.current.p = 0
+        wasCollapsedRef.current = true
       })
       return
     }
@@ -357,31 +361,45 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     }
 
     if (target === 2) {
-      // OPEN:
-      //   ① flicker the tiny center square in (150ms, opacity 0 → 1)
-      //   ② horizontal expand (350ms, p: current → 1)
-      //   ③ vertical expand (350ms, p: 1 → 2)
-      animate(panel, {
-        opacity: [0, 0.4, 0.1, 0.7, 1],
-        duration: 150,
-        delay: layerDelay,
-        ease: "steps(5)",
-      })
-      animate(openRef.current, {
-        p: 1,
-        duration: 350,
-        delay: layerDelay + 150,
-        ease: "outExpo",
-        onUpdate: () => applyShape(openRef.current.p),
-      }).then(() => {
-        if (shapeAnimationRunRef.current !== runId) return
+      if (wasCollapsedRef.current) {
+        // Re-expanding from header strip: snap to full shape and flicker in.
+        // No center-square phase.
+        wasCollapsedRef.current = false
+        openRef.current.p = 2
+        applyShape(2)
+        animate(panel, {
+          opacity: [0, 0.4, 0.1, 0.7, 1],
+          duration: 150,
+          delay: layerDelay,
+          ease: "steps(5)",
+        })
+      } else {
+        // Boot / normal open:
+        //   ① flicker in (150ms, opacity 0 → 1)
+        //   ② horizontal expand (350ms, p: current → 1)
+        //   ③ vertical expand (350ms, p: 1 → 2)
+        animate(panel, {
+          opacity: [0, 0.4, 0.1, 0.7, 1],
+          duration: 150,
+          delay: layerDelay,
+          ease: "steps(5)",
+        })
         animate(openRef.current, {
-          p: 2,
+          p: 1,
           duration: 350,
+          delay: layerDelay + 150,
           ease: "outExpo",
           onUpdate: () => applyShape(openRef.current.p),
+        }).then(() => {
+          if (shapeAnimationRunRef.current !== runId) return
+          animate(openRef.current, {
+            p: 2,
+            duration: 350,
+            ease: "outExpo",
+            onUpdate: () => applyShape(openRef.current.p),
+          })
         })
-      })
+      }
     } else {
       // CLOSE (state === "hidden", reverse of open):
       //   ① content flicker out (320ms, handled by content effect)
