@@ -636,40 +636,89 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   .futuristic-panel::after { animation: none; }
 }
 
-/* Stenciled station ID — sits inside the panel just past the corner triangle. */
-.futuristic-panel > .fp-label {
-  position: absolute;
-  top: 4px;
-  left: 16px;
-  padding: 0 4px;
-  font-size: 9px;
-  letter-spacing: 0.22em;
-  font-weight: 700;
-  line-height: 12px;
-  color: var(--fp-accent, var(--hud-cyan));
-  text-transform: uppercase;
-  pointer-events: auto;
+/* ── Two-tier panel label + drag affordance ── */
+.futuristic-panel > .fp-label-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(125, 246, 255, 0.07);
   cursor: move;
   user-select: none;
   touch-action: none;
-  transition: color 320ms ease;
-  text-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+  transition: border-color 200ms ease;
 }
 
-.futuristic-panel > .fp-label:hover {
+.futuristic-panel > .fp-label-group .fp-label-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.futuristic-panel > .fp-label-group .fp-cat {
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--fp-accent, var(--hud-cyan));
+  transition: color 200ms ease;
+}
+
+.futuristic-panel > .fp-label-group .fp-num {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  font-weight: 400;
+  line-height: 1;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 58%, transparent);
+}
+
+/* Grip dots — 3 rows × 2 columns, hidden by default */
+.futuristic-panel > .fp-label-group .fp-grip {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5px;
+  opacity: 0;
+  transition: opacity 140ms ease;
+  flex-shrink: 0;
+}
+
+.futuristic-panel > .fp-label-group .fp-grip span {
+  display: flex;
+  gap: 2.5px;
+}
+
+.futuristic-panel > .fp-label-group .fp-grip span::before,
+.futuristic-panel > .fp-label-group .fp-grip span::after {
+  content: '';
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--fp-accent, var(--hud-cyan));
+  opacity: 0.65;
+}
+
+/* Show grip on hover */
+.futuristic-panel:hover > .fp-label-group .fp-grip,
+.futuristic-panel.is-panel-dragging > .fp-label-group .fp-grip {
+  opacity: 1;
+}
+
+.futuristic-panel:hover > .fp-label-group .fp-cat {
+  filter: brightness(1.12);
+}
+
+.futuristic-panel.is-panel-dragging > .fp-label-group {
+  cursor: grabbing;
+}
+
+.futuristic-panel.is-panel-dragging > .fp-label-group .fp-cat {
   color: var(--text-bright);
-  text-shadow:
-    0 0 6px rgba(0, 0, 0, 0.7),
-    0 0 12px var(--fp-accent, var(--hud-cyan));
 }
 
 .futuristic-panel.is-panel-dragging {
   z-index: 50;
-}
-
-.futuristic-panel.is-panel-dragging > .fp-label {
-  color: var(--text-bright);
-  cursor: grabbing;
 }
 
 /* Vertical scan beam that loops while the panel is being tracked. */
