@@ -76,11 +76,11 @@ export function StationVectorFrame({ width: w, height: h, cornerSize, color, sel
           stroke={accent} strokeWidth={0.65} strokeOpacity={0.38} />
       ))}
 
-      {/* ── Vector: chamfer vertex dots at TR and BL ── */}
-      <circle cx={w - ch} cy={0}    r={2.4} fill={accent} fillOpacity={0.78} />
-      <circle cx={w}      cy={ch}   r={2.4} fill={accent} fillOpacity={0.78} />
-      <circle cx={ch}     cy={h}    r={2.4} fill={accent} fillOpacity={0.78} />
-      <circle cx={0}      cy={h - ch} r={2.4} fill={accent} fillOpacity={0.78} />
+      {/* ── Vector: chamfer vertex squares at TR and BL endpoints ── */}
+      <rect x={w - ch - 2.4} y={-2.4}    width={4.8} height={4.8} fill={accent} fillOpacity={0.82} />
+      <rect x={w - 2.4}      y={ch - 2.4} width={4.8} height={4.8} fill={accent} fillOpacity={0.82} />
+      <rect x={ch - 2.4}     y={h - 2.4}  width={4.8} height={4.8} fill={accent} fillOpacity={0.82} />
+      <rect x={-2.4}         y={h - ch - 2.4} width={4.8} height={4.8} fill={accent} fillOpacity={0.82} />
     </svg>
   )
 }

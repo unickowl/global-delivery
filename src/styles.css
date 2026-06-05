@@ -514,6 +514,22 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   clip-path: polygon(100% 100%, 0 100%, 100% 0);
 }
 
+/* Chamfer-corner toggles: visible small squares, primary collapse affordance */
+.futuristic-panel > .fp-corner-toggle-rt,
+.futuristic-panel > .fp-corner-toggle-lb {
+  opacity: 0.52;
+  background: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 48%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 72%, transparent);
+  cursor: pointer;
+  transition: opacity 150ms ease, filter 150ms ease;
+}
+
+.futuristic-panel > .fp-corner-toggle-rt:hover,
+.futuristic-panel > .fp-corner-toggle-lb:hover {
+  opacity: 0.9;
+  filter: drop-shadow(0 0 5px var(--fp-accent, var(--hud-cyan)));
+}
+
 .futuristic-panel > .fp-corner-toggle:focus-visible {
   opacity: 1;
   outline: none;
@@ -526,15 +542,22 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   min-height: 0;
 }
 
-.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle {
-  opacity: 0.52;
-  background: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 14%, transparent);
+.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-lt,
+.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-rb {
+  opacity: 0.32;
+  background: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 10%, transparent);
 }
 
-.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle:hover {
-  opacity: 0.85;
-  background: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 24%, transparent);
-  filter: drop-shadow(0 0 6px var(--fp-accent, var(--hud-cyan)));
+.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-rt,
+.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-lb {
+  opacity: 0.82;
+  filter: drop-shadow(0 0 4px var(--fp-accent, var(--hud-cyan)));
+}
+
+.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-rt:hover,
+.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-lb:hover {
+  opacity: 1;
+  filter: drop-shadow(0 0 8px var(--fp-accent, var(--hud-cyan)));
 }
 
 /* Glitch layer — duplicates the grain with a slight horizontal offset and
