@@ -1,0 +1,87 @@
+interface Props {
+  width: number
+  height: number
+  cornerSize: number
+  color: string
+  selectedColor: string
+  selected: boolean
+}
+
+export function StationVectorFrame({ width: w, height: h, cornerSize, color, selectedColor, selected }: Props) {
+  if (w === 0 || h === 0) return null
+
+  const accent = selected ? selectedColor : color
+  // Matches applyShape: cham = (cs + 4) * phase2 at fully open (phase2 = 1)
+  const ch = cornerSize + 4
+
+  const barGlow = `drop-shadow(0 0 3px ${accent}) drop-shadow(0 0 1.5px ${accent})`
+  const diagGlow = `drop-shadow(0 0 2.5px ${accent})`
+
+  // Tick positions: 3 evenly-spaced ticks along each bar
+  // Top bar spans x=0..w-ch; bottom bar spans x=ch..w (same length)
+  const topBarLen = w - ch
+  const ticks = [0.25, 0.5, 0.75].map((t) => Math.round(topBarLen * t))
+  const bottomTicks = ticks.map((x) => ch + x)
+
+  return (
+    <svg
+      className="fp-station-frame"
+      aria-hidden
+      style={{
+        position: "absolute",
+        inset: 0,
+        width: "100%",
+        height: "100%",
+        overflow: "visible",
+        pointerEvents: "none",
+        zIndex: 4,
+      }}
+    >
+      {/* ── Station: top bar + TR diagonal (one continuous visual weight) ── */}
+      <line
+        x1={0} y1={0.5} x2={w - ch} y2={0.5}
+        stroke={accent} strokeWidth={2.5} strokeOpacity={0.88}
+        style={{ filter: barGlow }}
+      />
+      <line
+        x1={w - ch} y1={0} x2={w} y2={ch}
+        stroke={accent} strokeWidth={2.5} strokeOpacity={0.72}
+        style={{ filter: diagGlow }}
+      />
+
+      {/* ── Station: bottom bar + BL diagonal ── */}
+      <line
+        x1={ch} y1={h - 0.5} x2={w} y2={h - 0.5}
+        stroke={accent} strokeWidth={2.5} strokeOpacity={0.88}
+        style={{ filter: barGlow }}
+      />
+      <line
+        x1={ch} y1={h} x2={0} y2={h - ch}
+        stroke={accent} strokeWidth={2.5} strokeOpacity={0.72}
+        style={{ filter: diagGlow }}
+      />
+
+      {/* ── Station: corner vertical marks at TL and BR (the 90° corners) ── */}
+      <line x1={0.5} y1={0} x2={0.5} y2={cornerSize + 2}
+        stroke={accent} strokeWidth={1.2} strokeOpacity={0.5} />
+      <line x1={w - 0.5} y1={h - cornerSize - 2} x2={w - 0.5} y2={h}
+        stroke={accent} strokeWidth={1.2} strokeOpacity={0.5} />
+
+      {/* ── Station: tick marks ── */}
+      {ticks.map((x, i) => (
+        <line key={`tt${i}`} x1={x} y1={0} x2={x} y2={4}
+          stroke={accent} strokeWidth={0.65} strokeOpacity={0.38} />
+      ))}
+      {bottomTicks.map((x, i) => (
+        <line key={`tb${i}`} x1={x} y1={h} x2={x} y2={h - 4}
+          stroke={accent} strokeWidth={0.65} strokeOpacity={0.38} />
+      ))}
+
+      {/* ── Vector: chamfer vertex dots at TR and BL ── */}
+      <circle cx={w - ch} cy={0}    r={2.4} fill={accent} fillOpacity={0.78} />
+      <circle cx={w}      cy={ch}   r={2.4} fill={accent} fillOpacity={0.78} />
+      <circle cx={ch}     cy={h}    r={2.4} fill={accent} fillOpacity={0.78} />
+      <circle cx={0}      cy={h - ch} r={2.4} fill={accent} fillOpacity={0.78} />
+    </svg>
+  )
+}
