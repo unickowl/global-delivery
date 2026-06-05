@@ -14,7 +14,6 @@ export function StationVectorFrame({ width: w, height: h, cornerSize, color, sel
   // Matches applyShape: cham = (cs + 16) * phase2 at fully open (phase2 = 1)
   const ch = cornerSize + 16
 
-  const barGlow = `drop-shadow(0 0 3px ${accent}) drop-shadow(0 0 1.5px ${accent})`
   const diagGlow = `drop-shadow(0 0 2.5px ${accent})`
 
   // Tick positions: 3 evenly-spaced ticks along each bar
@@ -40,24 +39,24 @@ export function StationVectorFrame({ width: w, height: h, cornerSize, color, sel
       {/* ── Station: top bar + TR diagonal (one continuous visual weight) ── */}
       <line
         x1={0} y1={0.5} x2={w - ch} y2={0.5}
-        stroke={accent} strokeWidth={2.5} strokeOpacity={0.88}
-        style={{ filter: barGlow }}
+        stroke={accent} strokeWidth={1.5} strokeOpacity={0.82}
+        style={{ filter: diagGlow }}
       />
       <line
         x1={w - ch} y1={0} x2={w} y2={ch}
-        stroke={accent} strokeWidth={2.5} strokeOpacity={0.72}
+        stroke={accent} strokeWidth={1.5} strokeOpacity={0.72}
         style={{ filter: diagGlow }}
       />
 
       {/* ── Station: bottom bar + BL diagonal ── */}
       <line
         x1={ch} y1={h - 0.5} x2={w} y2={h - 0.5}
-        stroke={accent} strokeWidth={2.5} strokeOpacity={0.88}
-        style={{ filter: barGlow }}
+        stroke={accent} strokeWidth={1.5} strokeOpacity={0.82}
+        style={{ filter: diagGlow }}
       />
       <line
         x1={ch} y1={h} x2={0} y2={h - ch}
-        stroke={accent} strokeWidth={2.5} strokeOpacity={0.72}
+        stroke={accent} strokeWidth={1.5} strokeOpacity={0.72}
         style={{ filter: diagGlow }}
       />
 
