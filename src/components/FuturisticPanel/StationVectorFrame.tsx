@@ -11,8 +11,8 @@ export function StationVectorFrame({ width: w, height: h, cornerSize, color, sel
   if (w === 0 || h === 0) return null
 
   const accent = selected ? selectedColor : color
-  // Matches applyShape: cham = (cs + 4) * phase2 at fully open (phase2 = 1)
-  const ch = cornerSize + 4
+  // Matches applyShape: cham = (cs + 16) * phase2 at fully open (phase2 = 1)
+  const ch = cornerSize + 16
 
   const barGlow = `drop-shadow(0 0 3px ${accent}) drop-shadow(0 0 1.5px ${accent})`
   const diagGlow = `drop-shadow(0 0 2.5px ${accent})`

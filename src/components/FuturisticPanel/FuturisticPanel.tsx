@@ -83,7 +83,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     color = DEFAULT_COLOR,
     selectedColor = DEFAULT_SELECTED,
     strokeWidth = 1,
-    cornerSize = 22,
+    cornerSize = 10,
     disableCorner = false,
     disableBorder = true,
     corners = ["lt", "rb"],
@@ -274,7 +274,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
       // panel is still a band, the visible region is a plain rectangle.
       // Scale the chamfer with cornerSize so small panels (tx rows, coords)
       // get proportionally smaller cuts.
-      const cham = (cs + 4) * phase2
+      const cham = (cs + 16) * phase2
       const overflow = cs * phase2
 
       panel.style.clipPath = `polygon(${left - overflow}px ${top - overflow}px, ${right - cham}px ${top}px, ${right}px ${top + cham}px, ${right + overflow}px ${bottom + overflow}px, ${left + cham}px ${bottom}px, ${left}px ${bottom - cham}px)`
