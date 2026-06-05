@@ -3,6 +3,7 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from "react"
 import { animate, utils } from "animejs"
 import { Border } from "./Border"
 import { Corner } from "./Corner"
+import { StationVectorFrame } from "./StationVectorFrame"
 import { useBoot } from "./context"
 import { useElementSize, useHover } from "./hooks"
 import type { CornerKey, PanelState } from "./types"
@@ -80,7 +81,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     color = DEFAULT_COLOR,
     selectedColor = DEFAULT_SELECTED,
     strokeWidth = 1,
-    cornerSize = 10,
+    cornerSize = 22,
     disableCorner = false,
     disableBorder = true,
     corners = ["lt", "rb"],
@@ -498,6 +499,16 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
             event.stopPropagation()
             setCollapsed((value) => !value)
           }}
+        />
+      )}
+      {!disableCorner && size.width > 0 && (
+        <StationVectorFrame
+          width={size.width}
+          height={size.height}
+          cornerSize={cornerSize}
+          color={color}
+          selectedColor={selectedColor}
+          selected={state === "selected"}
         />
       )}
       {label && <span className="fp-label" aria-hidden>{label}</span>}
