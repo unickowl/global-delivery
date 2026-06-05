@@ -296,7 +296,56 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     utils.remove(openRef.current)
     utils.remove(panel)
 
-    const target = state === "hidden" || isCollapsed ? 0 : 2
+    const target = state === "hidden" ? 0 : 2
+
+    if (isCollapsed) {
+      // User-triggered collapse: shrink bottom edge up to a header strip
+      // that keeps the label group (category + station ID) visible.
+      const labelGroup = panel.querySelector<HTMLElement>(".fp-label-group")
+      const headerH = labelGroup
+        ? labelGroup.offsetTop + labelGroup.offsetHeight + 8
+        : 52
+      const cw = size.width
+      const cham = cornerSize + 16
+      const ovf = cornerSize
+
+      const applyHeaderStrip = () => {
+        panel.style.clipPath = `polygon(${-ovf}px ${-ovf}px, ${cw - cham}px 0, ${cw}px ${cham}px, ${cw}px ${headerH}px, 0 ${headerH}px)`
+        panel.style.opacity = "1"
+        if (ltGroup) ltGroup.setAttribute("transform", `translate(0 0)`)
+        if (ltToggle) {
+          ltToggle.style.transform = `translate(0px, 0px)`
+          ltToggle.style.width = `${cornerSize}px`
+          ltToggle.style.height = `${cornerSize}px`
+        }
+      }
+
+      if (openRef.current.p < 1.5) {
+        // Already compact (re-render while collapsed) — snap directly.
+        applyHeaderStrip()
+        openRef.current.p = 0
+        return
+      }
+
+      // Animate bottom edge from full panel height up to headerH.
+      const progress = { bottom: size.height }
+      animate(progress, {
+        bottom: headerH,
+        duration: 350,
+        delay: layerDelay + 320,
+        ease: "inExpo",
+        onUpdate: () => {
+          if (shapeAnimationRunRef.current !== runId) return
+          panel.style.clipPath = `polygon(${-ovf}px ${-ovf}px, ${cw - cham}px 0, ${cw}px ${cham}px, ${cw}px ${progress.bottom}px, 0 ${progress.bottom}px)`
+        },
+      }).then(() => {
+        if (shapeAnimationRunRef.current !== runId) return
+        applyHeaderStrip()
+        openRef.current.p = 0
+      })
+      return
+    }
+
     const current = openRef.current.p
 
     // Already at target — just snap (covers normal/hover/selected and the
@@ -334,12 +383,11 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         })
       })
     } else {
-      // CLOSE (reverse of open):
+      // CLOSE (state === "hidden", reverse of open):
       //   ① content flicker out (320ms, handled by content effect)
       //   ② vertical collapse (350ms, p: current → 1)
       //   ③ horizontal collapse to small square (350ms, p: 1 → 0)
-      //   ④ boot-hidden flickers the tiny center square out; user-collapsed
-      //      panels keep that square visible as the reopen target.
+      //   ④ flickers the tiny center square out
       animate(openRef.current, {
         p: 1,
         duration: 350,
@@ -358,11 +406,6 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         )
         .then(() => {
           if (shapeAnimationRunRef.current !== runId) return
-          if (isCollapsed) {
-            panel.style.opacity = "1"
-            applyShape(0)
-            return
-          }
           animate(panel, {
             opacity: [1, 0.7, 0.1, 0.4, 0],
             duration: 150,
@@ -389,7 +432,9 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         c instanceof HTMLElement &&
         !c.classList.contains("futuristic-panel") &&
         !c.classList.contains("fp-scan-beam") &&
-        !c.classList.contains("fp-corner-toggle"),
+        !c.classList.contains("fp-corner-toggle") &&
+        // Keep label group visible when collapsed so the header strip shows the title.
+        !(isCollapsed && c.classList.contains("fp-label-group")),
     )
     if (targets.length === 0) return
 
