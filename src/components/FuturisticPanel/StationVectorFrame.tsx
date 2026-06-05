@@ -5,9 +5,10 @@ interface Props {
   color: string
   selectedColor: string
   selected: boolean
+  collapsed?: boolean
 }
 
-export function StationVectorFrame({ width: w, height: h, cornerSize, color, selectedColor, selected }: Props) {
+export function StationVectorFrame({ width: w, height: h, cornerSize, color, selectedColor, selected, collapsed = false }: Props) {
   if (w === 0 || h === 0) return null
 
   const accent = selected ? selectedColor : color
@@ -48,37 +49,39 @@ export function StationVectorFrame({ width: w, height: h, cornerSize, color, sel
         style={{ filter: diagGlow }}
       />
 
-      {/* ── Station: bottom bar + BL diagonal ── */}
-      <line
-        x1={ch} y1={h - 0.5} x2={w} y2={h - 0.5}
-        stroke={accent} strokeWidth={1.5} strokeOpacity={0.82}
-        style={{ filter: diagGlow }}
-      />
-      <line
-        x1={ch} y1={h} x2={0} y2={h - ch}
-        stroke={accent} strokeWidth={1.5} strokeOpacity={0.72}
-        style={{ filter: diagGlow }}
-      />
+      {/* ── Station: bottom bar + BL diagonal — hidden when collapsed ── */}
+      {!collapsed && (
+        <>
+          <line
+            x1={ch} y1={h - 0.5} x2={w} y2={h - 0.5}
+            stroke={accent} strokeWidth={1.5} strokeOpacity={0.82}
+            style={{ filter: diagGlow }}
+          />
+          <line
+            x1={ch} y1={h} x2={0} y2={h - ch}
+            stroke={accent} strokeWidth={1.5} strokeOpacity={0.72}
+            style={{ filter: diagGlow }}
+          />
+        </>
+      )}
 
-      {/* ── Station: corner vertical marks at TL and BR (the 90° corners) ── */}
+      {/* ── Station: corner vertical marks at TL (always) and BR (expanded only) ── */}
       <line x1={0.5} y1={0} x2={0.5} y2={cornerSize + 2}
         stroke={accent} strokeWidth={1.2} strokeOpacity={0.5} />
-      <line x1={w - 0.5} y1={h - cornerSize - 2} x2={w - 0.5} y2={h}
-        stroke={accent} strokeWidth={1.2} strokeOpacity={0.5} />
+      {!collapsed && (
+        <line x1={w - 0.5} y1={h - cornerSize - 2} x2={w - 0.5} y2={h}
+          stroke={accent} strokeWidth={1.2} strokeOpacity={0.5} />
+      )}
 
-      {/* ── Station: tick marks ── */}
+      {/* ── Station: tick marks — bottom ticks hidden when collapsed ── */}
       {ticks.map((x, i) => (
         <line key={`tt${i}`} x1={x} y1={0} x2={x} y2={4}
           stroke={accent} strokeWidth={0.65} strokeOpacity={0.38} />
       ))}
-      {bottomTicks.map((x, i) => (
+      {!collapsed && bottomTicks.map((x, i) => (
         <line key={`tb${i}`} x1={x} y1={h} x2={x} y2={h - 4}
           stroke={accent} strokeWidth={0.65} strokeOpacity={0.38} />
       ))}
-
-      {/* ── Vector: chamfer vertex squares at BL endpoints only ── */}
-      <rect x={ch - 2.4}     y={h - 2.4}      width={4.8} height={4.8} fill={accent} fillOpacity={0.82} />
-      <rect x={-2.4}         y={h - ch - 2.4} width={4.8} height={4.8} fill={accent} fillOpacity={0.82} />
     </svg>
   )
 }

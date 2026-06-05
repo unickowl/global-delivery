@@ -110,9 +110,15 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   const shapeAnimationRunRef = useRef(0)
   // Open-progress: 0 = closed, 1 = horizontal band, 2 = fully open.
   const openRef = useRef({ p: 0 })
+  // Tracks the in-flight collapse progress object so it can be cancelled if the
+  // effect re-fires (e.g. from a ResizeObserver after children unmount).
+  const collapseProgressRef = useRef<{ bottom: number } | null>(null)
   // True while the panel is showing the header strip (collapsed state).
   // Causes re-expansion to snap+flicker rather than play the center-square open.
   const wasCollapsedRef = useRef(false)
+  // Frozen children snapshot — holds the last rendered non-collapsed children so
+  // non-render-prop panels don't re-render with live data while collapsed.
+  const frozenChildrenRef = useRef<ReactNode>(null)
 
   useImperativeHandle(forwardedRef, () => sizeRef.current as HTMLDivElement)
 
@@ -288,6 +294,11 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
       }
     }
 
+    // Cancel any in-flight animations including the collapse progress object.
+    if (collapseProgressRef.current) {
+      utils.remove(collapseProgressRef.current)
+      collapseProgressRef.current = null
+    }
     utils.remove(openRef.current)
     utils.remove(panel)
 
@@ -313,7 +324,10 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         }
       }
 
-      if (openRef.current.p < 1.5) {
+      // Snap when: already at target progress, OR panel has already shrunk to
+      // near header height (children unmounted after contentReady=false, causing a
+      // ResizeObserver re-fire — avoid restarting the animation from the new smaller size).
+      if (openRef.current.p < 1.5 || size.height <= headerH + 12) {
         applyHeaderStrip()
         openRef.current.p = 0
         wasCollapsedRef.current = true
@@ -321,6 +335,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
       }
 
       const progress = { bottom: size.height }
+      collapseProgressRef.current = progress
       animate(progress, {
         bottom: headerH,
         duration: 350,
@@ -332,6 +347,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         },
       }).then(() => {
         if (shapeAnimationRunRef.current !== runId) return
+        collapseProgressRef.current = null
         applyHeaderStrip()
         openRef.current.p = 0
         wasCollapsedRef.current = true
@@ -423,6 +439,10 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
 
     return () => {
       shapeAnimationRunRef.current += 1
+      if (collapseProgressRef.current) {
+        utils.remove(collapseProgressRef.current)
+        collapseProgressRef.current = null
+      }
     }
   }, [state, isCollapsed, size.width, size.height, layerDelay, cornerSize, sizeRef])
 
@@ -498,6 +518,18 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   }
   const resolvedChildren = typeof children === "function" ? children(contentState) : children
 
+  // For non-render-prop children: freeze the last live render while collapsed so
+  // live data ticks don't cause DOM updates inside a hidden panel.
+  // Render-prop children manage their own collapsed state (return null when !active).
+  const isRenderProp = typeof children === "function"
+  if (!isRenderProp && !isCollapsed) {
+    frozenChildrenRef.current = resolvedChildren
+  }
+  const childrenToRender =
+    !isRenderProp && isCollapsed && frozenChildrenRef.current != null
+      ? frozenChildrenRef.current
+      : resolvedChildren
+
   return (
     <div
       {...rest}
@@ -565,6 +597,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
           color={color}
           selectedColor={selectedColor}
           selected={state === "selected"}
+          collapsed={isCollapsed}
         />
       )}
       {(category || label) && (
@@ -579,7 +612,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         </div>
       )}
       {scanning && state !== "hidden" && !isCollapsed && <span className="fp-scan-beam" aria-hidden />}
-      {resolvedChildren}
+      {childrenToRender}
     </div>
   )
 })
