@@ -504,27 +504,19 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   pointer-events: auto;
 }
 
-.futuristic-panel > .fp-corner-toggle-lt {
-  cursor: nwse-resize;
-  clip-path: polygon(0 0, 100% 0, 0 100%);
-}
-
-.futuristic-panel > .fp-corner-toggle-rb {
-  cursor: nwse-resize;
-  clip-path: polygon(100% 100%, 0 100%, 100% 0);
-}
-
-/* Chamfer-corner toggles: visible small squares, primary collapse affordance */
-.futuristic-panel > .fp-corner-toggle-rt,
+/* Right-angle corner toggles: visible small squares, primary collapse affordance */
+.futuristic-panel > .fp-corner-toggle-lt,
+.futuristic-panel > .fp-corner-toggle-rb,
 .futuristic-panel > .fp-corner-toggle-lb {
-  opacity: 0.52;
-  background: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 48%, transparent);
-  border: 1px solid color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 72%, transparent);
+  opacity: 0.48;
+  background: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 44%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 68%, transparent);
   cursor: pointer;
   transition: opacity 150ms ease, filter 150ms ease;
 }
 
-.futuristic-panel > .fp-corner-toggle-rt:hover,
+.futuristic-panel > .fp-corner-toggle-lt:hover,
+.futuristic-panel > .fp-corner-toggle-rb:hover,
 .futuristic-panel > .fp-corner-toggle-lb:hover {
   opacity: 0.9;
   filter: drop-shadow(0 0 5px var(--fp-accent, var(--hud-cyan)));
@@ -542,20 +534,12 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   min-height: 0;
 }
 
-.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-lt,
-.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-rb {
-  opacity: 0.32;
-  background: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 10%, transparent);
-}
-
-.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-rt,
-.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-lb {
+.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-lt {
   opacity: 0.82;
   filter: drop-shadow(0 0 4px var(--fp-accent, var(--hud-cyan)));
 }
 
-.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-rt:hover,
-.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-lb:hover {
+.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-lt:hover {
   opacity: 1;
   filter: drop-shadow(0 0 8px var(--fp-accent, var(--hud-cyan)));
 }

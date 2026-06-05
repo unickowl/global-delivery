@@ -247,7 +247,6 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
 
     const ltToggle = panel.querySelector<HTMLButtonElement>('[data-corner-toggle="lt"]')
     const rbToggle = panel.querySelector<HTMLButtonElement>('[data-corner-toggle="rb"]')
-    const rtToggle = panel.querySelector<HTMLButtonElement>('[data-corner-toggle="rt"]')
     const lbToggle = panel.querySelector<HTMLButtonElement>('[data-corner-toggle="lb"]')
 
     const applyShape = (p: number) => {
@@ -282,17 +281,10 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         rbToggle.style.width = `${cs}px`
         rbToggle.style.height = `${cs}px`
       }
-      // Chamfer-corner toggles: centered on the TR and BL diagonal midpoints.
-      const sqSize = 10
-      if (rtToggle) {
-        rtToggle.style.transform = `translate(${right - cham / 2 - sqSize / 2}px, ${top + cham / 2 - sqSize / 2}px)`
-        rtToggle.style.width = `${sqSize}px`
-        rtToggle.style.height = `${sqSize}px`
-      }
       if (lbToggle) {
-        lbToggle.style.transform = `translate(${left + cham / 2 - sqSize / 2}px, ${bottom - cham / 2 - sqSize / 2}px)`
-        lbToggle.style.width = `${sqSize}px`
-        lbToggle.style.height = `${sqSize}px`
+        lbToggle.style.transform = `translate(${left}px, ${bottom - cs}px)`
+        lbToggle.style.width = `${cs}px`
+        lbToggle.style.height = `${cs}px`
       }
     }
 
@@ -318,12 +310,6 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
           ltToggle.style.transform = `translate(0px, 0px)`
           ltToggle.style.width = `${cornerSize}px`
           ltToggle.style.height = `${cornerSize}px`
-        }
-        const sqSize = 10
-        if (rtToggle) {
-          rtToggle.style.transform = `translate(${cw - cham / 2 - sqSize / 2}px, ${cham / 2 - sqSize / 2}px)`
-          rtToggle.style.width = `${sqSize}px`
-          rtToggle.style.height = `${sqSize}px`
         }
       }
 
@@ -550,19 +536,6 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
           className="fp-corner-toggle fp-corner-toggle-rb"
           type="button"
           data-corner-toggle="rb"
-          aria-label={isCollapsed ? "Expand panel" : "Collapse panel"}
-          aria-pressed={isCollapsed}
-          onClick={(event) => {
-            event.stopPropagation()
-            setCollapsed((value) => !value)
-          }}
-        />
-      )}
-      {!disableCorner && size.width > 0 && (
-        <button
-          className="fp-corner-toggle fp-corner-toggle-rt"
-          type="button"
-          data-corner-toggle="rt"
           aria-label={isCollapsed ? "Expand panel" : "Collapse panel"}
           aria-pressed={isCollapsed}
           onClick={(event) => {
