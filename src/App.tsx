@@ -455,6 +455,7 @@ export const DEFAULT_GLOBE_SETTINGS: GlobeSettingsState = {
   streamIntervalMs: 1400,
   surfaceBrightness: 1.05,
   landBrightness: 0.75,
+  hudScale: 1,
   grainEnabled: true,
   grainOpacity: 0.1,
   grainScale: 1.10,
@@ -729,6 +730,12 @@ export function App() {
     "owlpay.globeSettings",
     DEFAULT_GLOBE_SETTINGS,
   )
+
+  // Apply the manual HUD scale knob to the document root so every rem-based
+  // HUD token scales (alongside the automatic viewport clamp in :root).
+  useEffect(() => {
+    document.documentElement.style.setProperty("--ui-scale", String(globeSettings.hudScale))
+  }, [globeSettings.hudScale])
 
   // For async sources (owlpay), pre-subscribe during boot so the first API poll
   // runs in parallel with the boot animation. dataReady gates TerminalBoot's

@@ -28,6 +28,8 @@ export type GlobeSettingsState = {
   streamIntervalMs: number
   surfaceBrightness: number
   landBrightness: number
+  /** Manual HUD scale multiplier for large displays (writes --ui-scale). 1 = auto only. */
+  hudScale: number
   /** Show film-grain noise on each HUD panel. */
   grainEnabled: boolean
   /** Opacity of the per-panel noise layer (0–0.6). */

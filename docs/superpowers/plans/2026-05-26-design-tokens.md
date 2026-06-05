@@ -18,6 +18,7 @@
 | `src/styles/tokens.semantic.css` | Create | Semantic aliases mapped to primitives (`--color-surface-panel`, `--space-md`, etc.) |
 | `src/styles.css` | Modify | Import both token files at top, migrate Section 1 from old `--hud-*` names to semantic tokens, leave a deprecation comment on the old names |
 | `docs/styling.md` | Create | One-page guide: which token to use when, naming convention, migration rule |
+| `src/components/GlobeSettings.tsx` | Modify | (Task 6) "HUD Scale" control writing `--ui-scale` for large-display nudging |
 
 ---
 
@@ -103,6 +104,8 @@ Read the output and pick the value clusters. You're looking for 8–12 distinct 
 ```
 
 Adjust scale steps and hex values to match what you actually found in Step 1 — these defaults are a starting point.
+
+> **Heads-up:** the `--space-*` and `--font-size-*` scales shown here in raw `px` are **superseded by Task 6**, which redefines them as `rem × var(--ui-scale)` for large-display scaling. If you're implementing Task 1 and Task 6 together, write the `rem`-based forms directly and skip the px versions.
 
 - [ ] **Step 3: Commit**
 
@@ -324,6 +327,123 @@ git commit -m "docs: reference design tokens in CLAUDE.md"
 
 ---
 
+### Task 6: Viewport scaling for large displays (大螢幕適配)
+
+**Why:** The monitor runs 24/7 on high-resolution wall screens viewed from 2–5 m, but the entire HUD is sized in fixed `px` down to 7–9px fonts and fixed panel widths/offsets (`top:16px`, `width:300px`). A high-DPI screen packs *more* pixels, not bigger ones, so fixed-px elements get physically **smaller** at distance — the opposite of what's needed. The globe (`<Canvas>`, fov-based) already self-scales; only the HUD layer needs a scaling basis. Existing "responsive" work only shrinks *down* to 720px (see `2026-05-12-monitor-redesign`); nothing scales *up*.
+
+**Mechanism (decided):** hybrid — a pure-CSS fluid root `font-size` (automatic, no JS) **plus** a JS-set `--ui-scale` multiplier (default `1`) for manual nudging. Spatial tokens (type, spacing, panel geometry) are expressed in `rem` and multiplied by `var(--ui-scale)`, so one automatic knob (root font-size) and one manual knob (`--ui-scale`) move the whole HUD coherently.
+
+> **Note:** a *unitless* viewport-driven scale factor is impossible in pure CSS — `calc()` can't divide a length into a ratio (`100vw / 1440px` is invalid). That's why the automatic part rides on root `font-size` + `rem`, and the manual `--ui-scale` is set from JS.
+
+> **Implementation note (2026-06-05, first slice landed):** the steps below describe per-token `calc(rem * var(--ui-scale))`, but the cleaner approach actually shipped: `--ui-scale` is folded **once** into the root font-size — `font-size: calc(clamp(13px, 0.5vw + 9px, 34px) * var(--ui-scale))` — so every plain-`rem` token follows both knobs with no per-token wrapping. The live token set is `src/styles/tokens.primitive.css` (`--font-size-2xs…3xl`, `--size-panel-*`); treat that file as source of truth over the example blocks here. Done so far: **all** `font-size` in `styles.css` converted to rem tokens (0 px remaining), plus panel/​rail/​detail/​telemetry **offsets and widths**. Still px (next pass): most `padding`/`gap`/`margin`, borders/radii/shadows (the latter intentionally stay px).
+
+**Files:**
+- Modify: `src/styles/tokens.primitive.css` (add `--ui-scale`, convert spatial scales to `rem × scale`, add panel-geometry sizes)
+- Modify: `src/styles.css` (add fluid root `font-size`; migrate Section 5 panel geometry — see Step 4)
+- Modify: `src/components/GlobeSettings.tsx` (+ wherever settings state lives) — add a "HUD Scale" control
+- Modify: `docs/styling.md` (document the scaling rule)
+
+- [ ] **Step 1: Add the fluid root font-size + `--ui-scale` primitive**
+
+In `src/styles/tokens.primitive.css` add:
+
+```css
+:root {
+  /* === Viewport scaling ===
+   * Automatic: root font-size scales with viewport width; every rem-based
+   * token follows. Manual: --ui-scale (JS-set, default 1) nudges the whole
+   * HUD for cases where viewport width is a poor proxy for viewing distance
+   * (close-up 4K monitor vs. distant 1080p wall TV).
+   */
+  --ui-scale: 1;
+}
+```
+
+And in `src/styles.css`, add the fluid root size to the existing `:root` block (the block migrated in Task 3) — this is the automatic knob:
+
+```css
+:root {
+  font-size: clamp(13px, 0.5vw + 9px, 34px);
+  /* ...existing font-family / color / background from Task 3... */
+}
+```
+
+Resulting effective root size (1rem) and factor vs. a 16px baseline — **starting values, verify visually**:
+
+| Viewport width | 1rem ≈ | factor |
+| --- | --- | --- |
+| 1280 (laptop)      | 15.4px | 0.96× |
+| 1440               | 16.2px | 1.01× |
+| 1920 (1080p wall)  | 18.6px | 1.16× |
+| 2560 (1440p)       | 21.8px | 1.36× |
+| 3440 (ultrawide)   | 26.2px | 1.64× |
+| 3840 (4K wall)     | 28.2px | 1.76× |
+
+Floor `13px` engages below ~800px; cap `34px` above ~5000px. Laptop ≈ 1.0× by design, so the current desktop look is preserved. Tune the `0.5vw + 9px` slope/offset and the `34px` cap against real screens — there is no UI auto-test in this repo (per CLAUDE.md), so this **must** be eyeballed at 1440 / 1920 / 2560 / 3840.
+
+- [ ] **Step 2: Convert spatial primitives to `rem × var(--ui-scale)`**
+
+Replace the fixed-px typography and spacing scales from Task 1 with rem values wrapped in the scale multiplier (16px = 1rem baseline):
+
+```css
+/* === Typography: scale (rem × manual scale) === */
+--font-size-xs:  calc(0.6875rem * var(--ui-scale)); /* 11px */
+--font-size-sm:  calc(0.8125rem * var(--ui-scale)); /* 13px */
+--font-size-md:  calc(0.9375rem * var(--ui-scale)); /* 15px */
+--font-size-lg:  calc(1.125rem  * var(--ui-scale)); /* 18px */
+--font-size-xl:  calc(1.5rem    * var(--ui-scale)); /* 24px */
+--font-size-2xl: calc(1.875rem  * var(--ui-scale)); /* 30px */
+
+/* === Spacing scale (4px base → rem × manual scale) === */
+--space-xs:  calc(0.25rem * var(--ui-scale)); /*  4px */
+--space-sm:  calc(0.5rem  * var(--ui-scale)); /*  8px */
+--space-md:  calc(1rem    * var(--ui-scale)); /* 16px */
+--space-lg:  calc(1.5rem  * var(--ui-scale)); /* 24px */
+--space-xl:  calc(2.5rem  * var(--ui-scale)); /* 40px */
+--space-2xl: calc(4rem    * var(--ui-scale)); /* 64px */
+```
+
+**Stay in px (do NOT scale):** `1px` hairline borders, `--radius-*`, and `box-shadow`/blur radii. Scaling those makes borders fuzzy and glows bloom; only type / spacing / geometry should scale.
+
+- [ ] **Step 3: Add panel-geometry size tokens**
+
+The visible large-screen win comes from panels *spreading out*, not just bigger text. Add scaled geometry primitives for the fixed panel widths/insets currently hardcoded in Section 5:
+
+```css
+/* === Panel geometry (rem × manual scale) === */
+--panel-inset:  calc(1rem      * var(--ui-scale)); /*  16px — top/left/right/bottom */
+--panel-w-sm:   calc(11.875rem * var(--ui-scale)); /* 190px — metrics / liquidity */
+--panel-w-md:   calc(18.75rem  * var(--ui-scale)); /* 300px — magi / transactions */
+```
+
+(Add more as Section 5 migration surfaces them. Map each in `tokens.semantic.css` to a purpose name, e.g. `--size-panel-inset`, `--size-panel-narrow`, `--size-panel-wide`.)
+
+- [ ] **Step 4: Migrate Section 5 panel geometry NOW (not opportunistically)**
+
+This is the one deliberate exception to the plan's opportunistic-migration rule. Typography scaling and panel-geometry scaling are coupled: if fonts grow via `rem` but a panel keeps a fixed-px width, text overflows. So in this task, migrate Section 5's panel rules (`.panel-system`, `.panel-magi`, `.panel-metrics`, `.panel-liquidity`, `.panel-transactions`, `.panel-detail`, `.dashboard-rail`, `.focus-telemetry`) — their `font-size`, padding/gap, `width`, and `top/left/right/bottom` offsets — to the scaled tokens above. Leave borders/radii/shadows in px.
+
+- [ ] **Step 5: Add the manual "HUD Scale" control**
+
+In `GlobeSettings.tsx`, add a slider wired to the existing settings/`usePersistentState` mechanism that writes the chosen factor to the root:
+
+```ts
+// range 0.7–2.0, step 0.05, default 1.0, persisted
+document.documentElement.style.setProperty("--ui-scale", String(hudScale))
+```
+
+Label it "HUD Scale" alongside the other globe controls. This is the manual nudge for the viewport-width-≠-viewing-distance edge cases. **Automatic width-based mode-switching is intentionally NOT implemented** — the fluid root font-size covers the automatic case; `--ui-scale` is purely manual.
+
+- [ ] **Step 6: Verify and commit**
+
+Run `pnpm dev`; check at narrow (~1280) and, if available, a large display or browser-zoomed-out viewport that the HUD scales coherently (text, spacing, panels all grow together; globe unaffected; borders stay crisp). Drag the HUD Scale slider and confirm live response. Then:
+
+```bash
+git add src/styles/tokens.primitive.css src/styles/tokens.semantic.css src/styles.css src/components/GlobeSettings.tsx docs/styling.md
+git commit -m "feat(styles): viewport scaling for large displays (rem + --ui-scale)"
+```
+
+---
+
 ## Self-Review Checklist (run before merging)
 
 - [ ] `pnpm dev` renders identically to before this plan (no visual regressions)
@@ -333,7 +453,10 @@ git commit -m "docs: reference design tokens in CLAUDE.md"
 - [ ] The old `--hud-*` etc. names in `:root` all resolve to semantic tokens (no raw literal values left in that block)
 - [ ] `docs/styling.md` exists and describes the migration rule
 - [ ] `CLAUDE.md` references the new token files
-- [ ] No other rules in `styles.css` were migrated in this plan — that's intentional; migration is opportunistic per the guide
+- [ ] No other rules in `styles.css` were migrated in this plan — that's intentional; migration is opportunistic per the guide (Section 5 panel geometry in Task 6 is the one deliberate exception)
+- [ ] `--ui-scale` primitive exists (default `1`); root `font-size` uses the fluid `clamp(...)`; spatial tokens are `rem × var(--ui-scale)`
+- [ ] Borders, `--radius-*`, and shadow/blur radii stayed in `px` (only type/spacing/geometry scale)
+- [ ] "HUD Scale" control writes `--ui-scale` and persists; dragging it rescales the HUD live; the globe is unaffected
 
 ## Out of Scope for This Plan
 

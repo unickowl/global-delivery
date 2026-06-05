@@ -1,0 +1,42 @@
+/* Primitive tokens — raw values, one source of truth.
+ * Do NOT reference these directly in component CSS; go through tokens.semantic.css.
+ *
+ * This file currently carries the VIEWPORT SCALING layer (Task 6 of the
+ * design-tokens plan). The full color/motion primitive migration (Tasks 1–5)
+ * lands opportunistically; only the scaling-relevant tokens exist so far.
+ */
+:root {
+  /* === Viewport scaling ===
+   * Automatic: the root font-size (set in styles.css :root) scales with
+   * viewport width via clamp(), and is multiplied by --ui-scale. Every rem
+   * value in the HUD therefore follows both knobs at once.
+   * Manual: --ui-scale (JS-set from the HUD Scale control, default 1) nudges
+   * the whole HUD for cases where viewport width is a poor proxy for viewing
+   * distance (close 4K monitor vs. distant 1080p wall TV).
+   */
+  --ui-scale: 1;
+
+  /* === Typography scale (rem; scales via root font-size) === */
+  --font-size-2xs: 0.5625rem; /*  9px @16 */
+  --font-size-xs:  0.625rem;  /* 10px */
+  --font-size-sm:  0.6875rem; /* 11px */
+  --font-size-md:  0.75rem;   /* 12px */
+  --font-size-base:0.8125rem; /* 13px */
+  --font-size-lg:  0.875rem;  /* 14px */
+  --font-size-xl:  1rem;      /* 16px */
+  --font-size-2xl: 1.375rem;  /* 22px */
+  --font-size-3xl: 1.875rem;  /* 30px */
+
+  /* === Spacing scale (rem; scales via root font-size) === */
+  --space-2xs: 0.25rem;  /*  4px */
+  --space-xs:  0.375rem; /*  6px */
+  --space-sm:  0.5rem;   /*  8px */
+  --space-md:  0.625rem; /* 10px */
+  --space-lg:  0.875rem; /* 14px */
+  --space-xl:  1rem;     /* 16px */
+
+  /* === Panel geometry (rem; scales via root font-size) === */
+  --size-panel-inset:  1rem;       /*  16px — panel top/left/right/bottom */
+  --size-panel-narrow: 11.875rem;  /* 190px — metrics / liquidity */
+  --size-panel-wide:   18.75rem;   /* 300px — magi / transactions */
+}

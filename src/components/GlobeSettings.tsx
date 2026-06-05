@@ -280,6 +280,7 @@ export function GlobeSettings({
             <SettingSlider label="Surface Brightness" value={settings.surfaceBrightness} min={0.65} max={4} step={0.05} onChange={(v) => update({ surfaceBrightness: v })} />
             <SettingSlider label="Land Brightness" value={settings.landBrightness} min={0.5} max={4} step={0.05} onChange={(v) => update({ landBrightness: v })} />
             <SettingToggle label="Show Grid" checked={settings.showGrid} onChange={(v) => update({ showGrid: v })} />
+            <SettingSlider label="HUD Scale" value={settings.hudScale} min={0.7} max={2.0} step={0.05} format={(v) => `${v.toFixed(2)}x`} onChange={(v) => update({ hudScale: v })} />
           </Section>
 
           <Section title="Flow">
