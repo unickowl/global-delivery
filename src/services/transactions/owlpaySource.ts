@@ -1,5 +1,6 @@
 import type { Transaction } from "../../data/transactions"
 import { quoteToTransaction } from "./owlpayAdapter"
+import { evolveSimulation } from "./owlpaySimulator"
 import type { QuoteListResponse } from "./owlpayTypes"
 import type {
   TransactionEvent,
@@ -7,6 +8,10 @@ import type {
   TransactionSourceOptions,
   TransactionSourceUnsubscribe,
 } from "./types"
+
+// When set, evolve the polled snapshot on the frontend so the dynamic polling
+// UX (trickle inserts, status updates, surge) is visible against a static mock.
+const SIMULATE = import.meta.env.VITE_OWLPAY_SIMULATE === "1"
 
 const POLL_MS = 10_000
 // Release one new transaction every TRICKLE_MS so the queue looks like a live stream.
@@ -66,9 +71,14 @@ export class OwlpayTransactionSource implements TransactionSource {
         const body: QuoteListResponse = await res.json()
         if (cancelled) return
         const quotes = body.data ?? []
-        const next = quotes
+        const adapted = quotes
           .map(quoteToTransaction)
           .filter((t): t is Transaction => t !== null)
+
+        // First poll uses the real fetched base; subsequent polls evolve it
+        // in-memory when simulation is enabled, otherwise use the fetched data.
+        const next =
+          SIMULATE && firstPollDone ? evolveSimulation(current) : adapted
 
         if (!firstPollDone) {
           // First successful poll — replace everything at once and warm the cache.
