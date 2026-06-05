@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Play, RotateCcw, Settings } from "lucide-react"
 import type { ReactNode } from "react"
 import type { GlobeSettingsState } from "./ArcOverlay"
+import { resetAllPanelPositions } from "./FuturisticPanel"
 import { DEFAULT_BOOT_SETTINGS, DEFAULT_GLOBE_SETTINGS, type BootSettingsState } from "../App"
 
 type GlobeSettingsProps = {
@@ -109,6 +110,7 @@ export function GlobeSettings({
   const reset = () => {
     onChange(DEFAULT_GLOBE_SETTINGS)
     onBootSettingsChange(DEFAULT_BOOT_SETTINGS)
+    resetAllPanelPositions()
   }
 
   const fmtMs = (v: number) =>

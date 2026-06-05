@@ -459,7 +459,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 .hud-panel {
   position: absolute;
   z-index: 10;
-  background: var(--panel-bg);
+  /* background: var(--panel-bg); */
   backdrop-filter: blur(12px);
   font-size: var(--font-size-lg);
   transition: background 600ms ease;
@@ -512,14 +512,21 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   pointer-events: auto;
 }
 
-.futuristic-panel > .fp-corner-toggle-lt {
-  cursor: nwse-resize;
-  clip-path: polygon(0 0, 100% 0, 0 100%);
+.futuristic-panel > .fp-corner-toggle-lt,
+.futuristic-panel > .fp-corner-toggle-rb,
+.futuristic-panel > .fp-corner-toggle-lb {
+  opacity: 0.48;
+  background: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 44%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 68%, transparent);
+  cursor: pointer;
+  transition: opacity 150ms ease, filter 150ms ease;
 }
 
-.futuristic-panel > .fp-corner-toggle-rb {
-  cursor: nwse-resize;
-  clip-path: polygon(100% 100%, 0 100%, 100% 0);
+.futuristic-panel > .fp-corner-toggle-lt:hover,
+.futuristic-panel > .fp-corner-toggle-rb:hover,
+.futuristic-panel > .fp-corner-toggle-lb:hover {
+  opacity: 0.9;
+  filter: drop-shadow(0 0 5px var(--fp-accent, var(--hud-cyan)));
 }
 
 .futuristic-panel > .fp-corner-toggle:focus-visible {
@@ -534,31 +541,20 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   min-height: 0;
 }
 
-.futuristic-panel[data-fp-collapsed="true"]::before {
-  opacity: 0.28;
-  background:
-    linear-gradient(135deg, var(--fp-accent, var(--hud-cyan)) 0 49%, transparent 50%),
-    linear-gradient(315deg, var(--fp-accent, var(--hud-cyan)) 0 49%, transparent 50%);
-  filter: drop-shadow(0 0 10px var(--fp-accent, var(--hud-cyan)));
+.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-lt {
+  opacity: 0.82;
+  filter: drop-shadow(0 0 4px var(--fp-accent, var(--hud-cyan)));
 }
 
-.futuristic-panel[data-fp-collapsed="true"]::after {
-  opacity: 0;
-}
-
-.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle {
+.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle-lt:hover {
   opacity: 1;
-  background:
-    linear-gradient(135deg, rgba(232, 251, 255, 0.22), transparent 42%),
-    color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 42%, rgba(4, 10, 18, 0.86));
-  border: 1px solid color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 74%, transparent);
-  box-shadow:
-    0 0 16px color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 36%, transparent),
-    inset 0 0 10px rgba(232, 251, 255, 0.08);
+  filter: drop-shadow(0 0 8px var(--fp-accent, var(--hud-cyan)));
 }
 
-.futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle:hover {
-  filter: brightness(1.28) drop-shadow(0 0 8px var(--fp-accent, var(--hud-cyan)));
+/* In the collapsed strip the bottom dissolves via the alpha mask; drop the
+   label group's separator line so it doesn't read as a hard bottom edge. */
+.futuristic-panel[data-fp-collapsed="true"] > .fp-label-group {
+  border-bottom-color: transparent;
 }
 
 /* Glitch layer — duplicates the grain with a slight horizontal offset and
@@ -644,40 +640,88 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   .futuristic-panel::after { animation: none; }
 }
 
-/* Stenciled station ID — sits inside the panel just past the corner triangle. */
-.futuristic-panel > .fp-label {
-  position: absolute;
-  top: 4px;
-  left: 16px;
-  padding: 0 4px;
-  font-size: var(--font-size-2xs);
-  letter-spacing: 0.22em;
-  font-weight: 700;
-  line-height: 12px;
-  color: var(--fp-accent, var(--hud-cyan));
-  text-transform: uppercase;
-  pointer-events: auto;
+/* Draggable label group — category (descriptive) over station ID, with a grip
+   handle that appears on hover. The whole group is the drag handle. */
+.futuristic-panel > .fp-label-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid rgba(125, 246, 255, 0.07);
   cursor: move;
   user-select: none;
   touch-action: none;
-  transition: color 320ms ease;
-  text-shadow: 0 0 6px rgba(0, 0, 0, 0.6);
+  transition: border-color 200ms ease;
 }
 
-.futuristic-panel > .fp-label:hover {
-  color: var(--text-bright);
-  text-shadow:
-    0 0 6px rgba(0, 0, 0, 0.7),
-    0 0 12px var(--fp-accent, var(--hud-cyan));
+.futuristic-panel > .fp-label-group .fp-label-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.futuristic-panel > .fp-label-group .fp-cat {
+  font-size: var(--font-size-base);
+  letter-spacing: 0.14em;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--fp-accent, var(--hud-cyan));
+  transition: color 200ms ease;
+}
+
+.futuristic-panel > .fp-label-group .fp-num {
+  font-size: var(--font-size-sm);
+  letter-spacing: 0.2em;
+  font-weight: 400;
+  line-height: 1;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 58%, transparent);
+}
+
+.futuristic-panel > .fp-label-group .fp-grip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15625rem;
+  opacity: 0;
+  transition: opacity 140ms ease;
+  flex-shrink: 0;
+}
+
+.futuristic-panel > .fp-label-group .fp-grip span {
+  display: flex;
+  gap: 0.15625rem;
+}
+
+.futuristic-panel > .fp-label-group .fp-grip span::before,
+.futuristic-panel > .fp-label-group .fp-grip span::after {
+  content: '';
+  width: 0.125rem;
+  height: 0.125rem;
+  border-radius: 50%;
+  background: var(--fp-accent, var(--hud-cyan));
+  opacity: 0.65;
+}
+
+.futuristic-panel:hover > .fp-label-group .fp-grip,
+.futuristic-panel.is-panel-dragging > .fp-label-group .fp-grip {
+  opacity: 1;
+}
+
+.futuristic-panel:hover > .fp-label-group .fp-cat {
+  filter: brightness(1.12);
 }
 
 .futuristic-panel.is-panel-dragging {
   z-index: 50;
 }
 
-.futuristic-panel.is-panel-dragging > .fp-label {
-  color: var(--text-bright);
+.futuristic-panel.is-panel-dragging > .fp-label-group {
   cursor: grabbing;
+}
+
+.futuristic-panel.is-panel-dragging > .fp-label-group .fp-cat {
+  color: var(--text-bright);
 }
 
 /* Vertical scan beam that loops while the panel is being tracked. */
@@ -817,10 +861,6 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   top: var(--size-panel-inset);
   left: var(--size-panel-inset);
   padding: var(--space-md) var(--size-panel-inset);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-md);
 }
 
 .system-text {
@@ -838,9 +878,6 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   top: var(--size-panel-inset);
   right: var(--size-panel-inset);
   padding: var(--space-md) var(--space-lg);
-  display: flex;
-  flex-direction: row;
-  gap: 0.75rem;
   min-width: var(--size-panel-wide);
 }
 
@@ -873,29 +910,51 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 }
 
 .panel-metrics {
-  top: 4.375rem;
+  top: 7.375rem;
   left: var(--size-panel-inset);
   width: var(--size-panel-narrow);
   padding: var(--space-lg);
 }
 
 .panel-liquidity {
-  bottom: 5rem;
+  bottom: 10rem;
   left: var(--size-panel-inset);
   width: var(--size-panel-narrow);
   padding: var(--space-lg);
 }
 
 .panel-transactions {
-  top: 6.5rem;
+  top: 8rem;
   right: var(--size-panel-inset);
   width: var(--size-panel-wide);
   overflow: hidden;
   padding: var(--space-lg);
 }
 
+/* Content rows that sit below the in-flow .fp-label-group. The panels are now
+   plain blocks (label group on top, content below); these rows carry the flex
+   layout the panels used to own, plus clearance from the label group. */
+.system-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-md);
+  margin-top: var(--space-sm);
+}
+
+.magi-row {
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  margin-top: var(--space-sm);
+}
+
+.detail-body {
+  margin-top: var(--space-md);
+}
+
 .tx-list-scroll {
-  max-height: calc(100vh - 250px);
+  max-height: calc(100vh - 12.5rem);
   margin-top: 8px;
   padding-right: 8px;
   overflow-y: auto;
@@ -966,12 +1025,14 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   display: grid;
   grid-template-columns: repeat(3, minmax(10.625rem, 1fr));
   gap: 0.75rem;
+  /* Each card hugs its own content instead of stretching to the tallest in the
+     row (grid default is align-items: stretch). */
+  align-items: start;
   pointer-events: none;
 }
 
 .dashboard-rail .hud-panel {
   position: relative;
-  min-height: 9.25rem;
   padding: var(--space-lg);
   overflow: hidden;
   pointer-events: auto;
@@ -1563,7 +1624,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 .focus-telemetry {
   position: absolute;
   left: 50%;
-  bottom: 6.75rem;
+  bottom: 9.75rem;
   z-index: 11;
   width: min(57.5rem, calc(100% - 360px));
   transform: translateX(-50%);
@@ -2029,7 +2090,6 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
     grid-template-columns: repeat(3, minmax(130px, 1fr));
   }
   .dashboard-rail .hud-panel {
-    min-height: 132px;
     padding: 12px;
   }
   .health-readout span {

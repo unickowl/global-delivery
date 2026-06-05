@@ -203,7 +203,8 @@ function FocusTelemetry({ transaction, forceCollapsed }: { transaction: Transact
     <FuturisticPanel
       className="hud-panel focus-telemetry"
       revealDelay={120}
-      label="FS-FOCUS // TX"
+      label="FS-FOCUS"
+      category="TX"
       cornerSize={8}
       forceCollapsed={forceCollapsed}
       aria-label="Focused transaction telemetry"
@@ -574,29 +575,33 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         )}
 
         {/* HUD: Top-left system status */}
-        <FuturisticPanel className="hud-panel panel-system" revealDelay={0} label="FS-00 // CORE" forceCollapsed={cardsCollapsed}>
-          <div className="live-dot" />
-          <div className="system-text">
-            <strong>OWLPAY</strong> · Quote feed live · {metrics.total} tracked · {conv}% paid
+        <FuturisticPanel className="hud-panel panel-system" revealDelay={0} label="FS-00" category="Core" forceCollapsed={cardsCollapsed}>
+          <div className="system-row">
+            <div className="live-dot" />
+            <div className="system-text">
+              <strong>OWLPAY</strong> · Quote feed live · {metrics.total} tracked · {conv}% paid
+            </div>
           </div>
         </FuturisticPanel>
 
         {/* HUD: Top-right operations status */}
-        <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01 // FLOW" forceCollapsed={cardsCollapsed}>
-          {[
-            ["PAID", `${metrics.paid} · ${conv}%`],
-            ["LOCKED", `${metrics.locked} in-flight`],
-            ["PENDING", `${metrics.pending} waiting`],
-          ].map(([name, value]) => (
-            <div className="magi-node" key={name}>
-              <span className="magi-name">{name}</span>
-              <span className="magi-status">{value}</span>
-            </div>
-          ))}
+        <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01" category="Flow" forceCollapsed={cardsCollapsed}>
+          <div className="magi-row">
+            {[
+              ["PAID", `${metrics.paid} · ${conv}%`],
+              ["LOCKED", `${metrics.locked} in-flight`],
+              ["PENDING", `${metrics.pending} waiting`],
+            ].map(([name, value]) => (
+              <div className="magi-node" key={name}>
+                <span className="magi-name">{name}</span>
+                <span className="magi-status">{value}</span>
+              </div>
+            ))}
+          </div>
         </FuturisticPanel>
 
         {/* HUD: Left metrics */}
-        <FuturisticPanel className="hud-panel panel-metrics" revealDelay={200} label="FS-02 // LOAD" forceCollapsed={cardsCollapsed}>
+        <FuturisticPanel className="hud-panel panel-metrics" revealDelay={200} label="FS-02" category="Load" forceCollapsed={cardsCollapsed}>
           <div className="hud-label">Quoted Volume · {metrics.spanLabel}</div>
           <div className="metric-item">
             <div className="metric-val">{formatCompactMoney(metrics.quotedVolume)}</div>
@@ -609,7 +614,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         </FuturisticPanel>
 
         {/* HUD: Left-bottom liquidity */}
-        <FuturisticPanel className="hud-panel panel-liquidity" revealDelay={280} label="FS-03 // CORRIDORS" forceCollapsed={cardsCollapsed}>
+        <FuturisticPanel className="hud-panel panel-liquidity" revealDelay={280} label="FS-03" category="Corridors" forceCollapsed={cardsCollapsed}>
           <div className="hud-label">Top Corridors</div>
           {metrics.corridors.map((c) => (
             <div className="pool-item" key={c.key}>
@@ -625,7 +630,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         </FuturisticPanel>
 
         {/* HUD: Right transaction queue */}
-        <FuturisticPanel className="hud-panel panel-transactions" revealDelay={360} label="FS-04 // QUEUE" forceCollapsed={cardsCollapsed}>
+        <FuturisticPanel className="hud-panel panel-transactions" revealDelay={360} label="FS-04" category="Queue" forceCollapsed={cardsCollapsed}>
           {({ active, loading }) => (
             loading ? <PanelLoading label="syncing queue" /> : active ? (
               <>
@@ -650,13 +655,13 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
 
         {mode === "monitor" && (
           <div className="dashboard-rail" aria-label="Operational dashboard charts">
-            <FuturisticPanel className="hud-panel panel-dashboard-card panel-flow-health" revealDelay={520} label="FS-06 // HEALTH" forceCollapsed={cardsCollapsed}>
+            <FuturisticPanel className="hud-panel panel-dashboard-card panel-flow-health" revealDelay={520} label="FS-06" category="Health" forceCollapsed={cardsCollapsed}>
               {({ active, loading }) => loading ? <PanelLoading label="loading health" /> : active ? <QuoteHealthCard metrics={metrics} /> : null}
             </FuturisticPanel>
-            <FuturisticPanel className="hud-panel panel-dashboard-card panel-live-volume" revealDelay={600} label="FS-07 // THROUGHPUT" forceCollapsed={cardsCollapsed} scanning>
+            <FuturisticPanel className="hud-panel panel-dashboard-card panel-live-volume" revealDelay={600} label="FS-07" category="Throughput" forceCollapsed={cardsCollapsed} scanning>
               {({ active, loading }) => loading ? <PanelLoading label="loading throughput" /> : active ? <ThroughputCard metrics={metrics} /> : null}
             </FuturisticPanel>
-            <FuturisticPanel className="hud-panel panel-dashboard-card panel-chain-mix" revealDelay={680} label="FS-08 // RAILS" forceCollapsed={cardsCollapsed}>
+            <FuturisticPanel className="hud-panel panel-dashboard-card panel-chain-mix" revealDelay={680} label="FS-08" category="Rails" forceCollapsed={cardsCollapsed}>
               {({ active, loading }) => loading ? <PanelLoading label="loading rails" /> : active ? <RailMixCard mix={metrics.railMix} /> : null}
             </FuturisticPanel>
           </div>
@@ -666,7 +671,8 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         <FuturisticPanel
           className="hud-panel panel-detail"
           revealDelay={450}
-          label="FS-05 // TRACK"
+          label="FS-05"
+          category="Track"
           scanning
           forceCollapsed={cardsCollapsed}
         >

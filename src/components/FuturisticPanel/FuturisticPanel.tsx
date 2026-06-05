@@ -2,9 +2,9 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react"
 import { animate, utils } from "animejs"
 import { Border } from "./Border"
-import { Corner } from "./Corner"
+import { StationVectorFrame } from "./StationVectorFrame"
 import { useBoot } from "./context"
-import { useElementSize, useHover } from "./hooks"
+import { useElementSize, useHover, useUiScale } from "./hooks"
 import type { CornerKey, PanelState } from "./types"
 
 export type FuturisticPanelRenderState = {
@@ -28,9 +28,10 @@ export interface FuturisticPanelProps extends Omit<HTMLAttributes<HTMLDivElement
   /** Disable border lines entirely. Defaults to true — the panel relies on
    *  a chamfered clip-path shape rather than drawn perimeter lines. */
   disableBorder?: boolean
-  /** Which corners to render as filled triangles. */
   corners?: CornerKey[]
-  /** Stenciled station ID rendered near the top-left corner (e.g. "FS-01"). */
+  /** Primary descriptive label shown at the top of the panel (e.g. "OPS STATUS"). */
+  category?: string
+  /** Secondary station ID shown below category (e.g. "FS-01"). */
   label?: string
   /** Show a vertical scan beam that loops while the panel is visible. */
   scanning?: boolean
@@ -42,9 +43,27 @@ export interface FuturisticPanelProps extends Omit<HTMLAttributes<HTMLDivElement
 const DEFAULT_COLOR = "var(--hud-cyan, #7df6ff)"
 const DEFAULT_SELECTED = "#ff8d0a"
 const PANEL_POSITION_STORAGE_PREFIX = "owlpay.panelPosition."
+const PANEL_POSITION_RESET_EVENT = "owlpay:reset-panel-positions"
 
 function panelPositionStorageKey(label: string) {
   return `${PANEL_POSITION_STORAGE_PREFIX}${encodeURIComponent(label)}`
+}
+
+/**
+ * Clear every persisted panel drag position and signal all mounted panels to
+ * snap back to their default (un-dragged) position. Used by the settings
+ * "Reset" control.
+ */
+export function resetAllPanelPositions() {
+  try {
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith(PANEL_POSITION_STORAGE_PREFIX))
+      .forEach((key) => localStorage.removeItem(key))
+  } catch {
+    // Storage may be unavailable (private mode / restricted); the live reset
+    // below still runs.
+  }
+  window.dispatchEvent(new Event(PANEL_POSITION_RESET_EVENT))
 }
 
 function readStoredPosition(key: string) {
@@ -84,6 +103,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     disableCorner = false,
     disableBorder = true,
     corners = ["lt", "rb"],
+    category,
     label,
     scanning = false,
     forceCollapsed,
@@ -97,6 +117,10 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   const [sizeRef, size] = useElementSize<HTMLDivElement>()
   const autoHover = useHover(sizeRef)
   const hover = hoverOverride ?? autoHover
+  // Effective HUD scale (auto clamp × manual --ui-scale). The measured size
+  // already reflects the rem-scaled panel; this scales the px frame detail
+  // (corner size, chamfer, ticks, stroke) so the whole frame stays proportional.
+  const uiScale = useUiScale()
 
   const { visible: bootVisible, epoch } = useBoot()
   const [hasBootedOnce, setHasBootedOnce] = useState(false)
@@ -106,9 +130,18 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   const dragRef = useRef({ active: false, pointerId: -1, startX: 0, startY: 0, x: 0, y: 0, baseX: 0, baseY: 0 })
   const storageKey = useMemo(() => (label ? panelPositionStorageKey(label) : null), [label])
   const shapeAnimationRunRef = useRef(0)
-  // Open-progress: 0 = closed (small center square), 1 = horizontal band,
-  // 2 = fully open chamfered shape. Drives both clip-path and corner positions.
+  // Open-progress: 0 = closed, 1 = horizontal band, 2 = fully open.
   const openRef = useRef({ p: 0 })
+  // Tracks the in-flight collapse progress object so it can be cancelled if the
+  // effect re-fires (e.g. from a ResizeObserver after children unmount).
+  const collapseProgressRef = useRef<{ bottom: number } | null>(null)
+  // True while the panel is showing the header strip (collapsed state).
+  // Causes re-expansion to snap+flicker rather than play the center-square open.
+  const wasCollapsedRef = useRef(false)
+  // Last measured width while expanded. Collapsing removes the content (which
+  // would shrink a content-width panel), so we lock the panel to this width
+  // while collapsed — collapse only changes height, never width.
+  const expandedWidthRef = useRef(0)
 
   useImperativeHandle(forwardedRef, () => sizeRef.current as HTMLDivElement)
 
@@ -131,11 +164,27 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     setCollapsed(forceCollapsed)
   }, [forceCollapsed])
 
+  // Settings "Reset" dispatches a global event; snap this panel's live drag
+  // offset back to zero (its persisted position was already cleared by the
+  // dispatcher).
+  useEffect(() => {
+    const onResetPositions = () => {
+      const panel = sizeRef.current
+      dragRef.current.x = 0
+      dragRef.current.y = 0
+      dragRef.current.baseX = 0
+      dragRef.current.baseY = 0
+      if (panel) panel.style.translate = ""
+    }
+    window.addEventListener(PANEL_POSITION_RESET_EVENT, onResetPositions)
+    return () => window.removeEventListener(PANEL_POSITION_RESET_EVENT, onResetPositions)
+  }, [sizeRef])
+
   useEffect(() => {
     const panel = sizeRef.current
     if (!panel || !label || !storageKey) return
 
-    const handle = panel.querySelector<HTMLElement>(".fp-label")
+    const handle = panel.querySelector<HTMLElement>(".fp-label-group")
     if (!handle) return
 
     const applyDrag = () => {
@@ -241,23 +290,20 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     if (!panel || size.width === 0 || size.height === 0) return
     const runId = (shapeAnimationRunRef.current += 1)
 
-    const ltGroup = panel.querySelector<SVGGElement>('[data-corner-group="lt"]')
-    const rbGroup = panel.querySelector<SVGGElement>('[data-corner-group="rb"]')
     const ltToggle = panel.querySelector<HTMLButtonElement>('[data-corner-toggle="lt"]')
     const rbToggle = panel.querySelector<HTMLButtonElement>('[data-corner-toggle="rb"]')
+    const lbToggle = panel.querySelector<HTMLButtonElement>('[data-corner-toggle="lb"]')
 
     const applyShape = (p: number) => {
       const cw = size.width
       const ch = size.height
-      const cs = cornerSize
+      const cs = cornerSize * uiScale
       const cx = cw / 2
       const cy = ch / 2
 
       const phase1 = Math.min(p, 1)
       const phase2 = Math.max(p - 1, 0)
 
-      // Visible region half-dimensions: starts as a cs×cs square at center,
-      // grows to full size as the two phases progress.
       const halfW = cs / 2 + (cw / 2 - cs / 2) * phase1
       const halfH = cs / 2 + (ch / 2 - cs / 2) * phase2
 
@@ -266,17 +312,10 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
       const top = cy - halfH
       const bottom = cy + halfH
 
-      // Chamfer + corner-overflow only fade in during phase 2 — while the
-      // panel is still a band, the visible region is a plain rectangle.
-      // Scale the chamfer with cornerSize so small panels (tx rows, coords)
-      // get proportionally smaller cuts.
-      const cham = (cs + 4) * phase2
-      const overflow = cs * phase2
+      const cham = (cs + 16 * uiScale) * phase2
 
-      panel.style.clipPath = `polygon(${left - overflow}px ${top - overflow}px, ${right - cham}px ${top}px, ${right}px ${top + cham}px, ${right + overflow}px ${bottom + overflow}px, ${left + cham}px ${bottom}px, ${left}px ${bottom - cham}px)`
+      panel.style.clipPath = `polygon(${left}px ${top}px, ${right - cham}px ${top}px, ${right}px ${top + cham}px, ${right}px ${bottom}px, ${left + cham}px ${bottom}px, ${left}px ${bottom - cham}px)`
 
-      if (ltGroup) ltGroup.setAttribute("transform", `translate(${left} ${top})`)
-      if (rbGroup) rbGroup.setAttribute("transform", `translate(${right - cs} ${bottom - cs})`)
       if (ltToggle) {
         ltToggle.style.transform = `translate(${left}px, ${top}px)`
         ltToggle.style.width = `${cs}px`
@@ -287,12 +326,96 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         rbToggle.style.width = `${cs}px`
         rbToggle.style.height = `${cs}px`
       }
+      if (lbToggle) {
+        lbToggle.style.transform = `translate(${left}px, ${bottom - cs}px)`
+        lbToggle.style.width = `${cs}px`
+        lbToggle.style.height = `${cs}px`
+      }
     }
 
+    // Cancel any in-flight animations including the collapse progress object.
+    if (collapseProgressRef.current) {
+      utils.remove(collapseProgressRef.current)
+      collapseProgressRef.current = null
+    }
     utils.remove(openRef.current)
     utils.remove(panel)
 
-    const target = state === "hidden" || isCollapsed ? 0 : 2
+    const target = state === "hidden" ? 0 : 2
+
+    if (isCollapsed) {
+      // User-triggered collapse: shrink bottom edge up to a header strip
+      // that keeps the label group (category + station ID) visible.
+      const labelGroup = panel.querySelector<HTMLElement>(".fp-label-group")
+      const labelBottom = labelGroup
+        ? labelGroup.offsetTop + labelGroup.offsetHeight
+        : 40 * uiScale
+      // Runway below the label so the bottom-edge fade has room to play out.
+      const headerH = labelBottom + 48 * uiScale
+      // Lock to the expanded width so removing the content can't shrink the card.
+      const cw = expandedWidthRef.current || size.width
+      panel.style.width = `${cw}px`
+      const cham = (cornerSize + 16) * uiScale
+
+      // Vertical alpha mask: solid through the label, fading to transparent by
+      // `bottomPx`, so the collapsed strip has no hard bottom edge — echoing the
+      // expanded card's chamfered bottom-left corner.
+      const setStripMask = (bottomPx: number) => {
+        const grad = `linear-gradient(to bottom, rgba(0,0,0,1) 0, rgba(0,0,0,1) ${labelBottom}px, rgba(0,0,0,0) ${bottomPx}px)`
+        panel.style.setProperty("mask-image", grad)
+        panel.style.setProperty("-webkit-mask-image", grad)
+      }
+
+      const applyHeaderStrip = () => {
+        panel.style.clipPath = `polygon(0px 0px, ${cw - cham}px 0, ${cw}px ${cham}px, ${cw}px ${headerH}px, 0 ${headerH}px)`
+        panel.style.opacity = "1"
+        setStripMask(headerH)
+        if (ltToggle) {
+          ltToggle.style.transform = `translate(0px, 0px)`
+          ltToggle.style.width = `${cornerSize * uiScale}px`
+          ltToggle.style.height = `${cornerSize * uiScale}px`
+        }
+      }
+
+      // Snap when: already at target progress, OR panel has already shrunk to
+      // near header height (children unmounted after contentReady=false, causing a
+      // ResizeObserver re-fire — avoid restarting the animation from the new smaller size).
+      if (openRef.current.p < 1.5 || size.height <= headerH + 12 * uiScale) {
+        applyHeaderStrip()
+        openRef.current.p = 0
+        wasCollapsedRef.current = true
+        return
+      }
+
+      const progress = { bottom: size.height }
+      collapseProgressRef.current = progress
+      animate(progress, {
+        bottom: headerH,
+        duration: 350,
+        delay: layerDelay + 320,
+        ease: "inExpo",
+        onUpdate: () => {
+          if (shapeAnimationRunRef.current !== runId) return
+          panel.style.clipPath = `polygon(0px 0px, ${cw - cham}px 0, ${cw}px ${cham}px, ${cw}px ${progress.bottom}px, 0 ${progress.bottom}px)`
+          setStripMask(progress.bottom)
+        },
+      }).then(() => {
+        if (shapeAnimationRunRef.current !== runId) return
+        collapseProgressRef.current = null
+        applyHeaderStrip()
+        openRef.current.p = 0
+        wasCollapsedRef.current = true
+      })
+      return
+    }
+
+    // Not collapsed — remember the expanded width (to lock on a later collapse),
+    // release any width lock, and clear the header-strip fade mask.
+    expandedWidthRef.current = size.width
+    panel.style.width = ""
+    panel.style.setProperty("mask-image", "")
+    panel.style.setProperty("-webkit-mask-image", "")
+
     const current = openRef.current.p
 
     // Already at target — just snap (covers normal/hover/selected and the
@@ -304,38 +427,51 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     }
 
     if (target === 2) {
-      // OPEN:
-      //   ① flicker the tiny center square in (150ms, opacity 0 → 1)
-      //   ② horizontal expand (350ms, p: current → 1)
-      //   ③ vertical expand (350ms, p: 1 → 2)
-      animate(panel, {
-        opacity: [0, 0.4, 0.1, 0.7, 1],
-        duration: 150,
-        delay: layerDelay,
-        ease: "steps(5)",
-      })
-      animate(openRef.current, {
-        p: 1,
-        duration: 350,
-        delay: layerDelay + 150,
-        ease: "outExpo",
-        onUpdate: () => applyShape(openRef.current.p),
-      }).then(() => {
-        if (shapeAnimationRunRef.current !== runId) return
+      if (wasCollapsedRef.current) {
+        // Re-expanding from header strip: snap to full shape and flicker in.
+        // No center-square phase.
+        wasCollapsedRef.current = false
+        openRef.current.p = 2
+        applyShape(2)
+        animate(panel, {
+          opacity: [0, 0.4, 0.1, 0.7, 1],
+          duration: 150,
+          delay: layerDelay,
+          ease: "steps(5)",
+        })
+      } else {
+        // Boot / normal open:
+        //   ① flicker in (150ms, opacity 0 → 1)
+        //   ② horizontal expand (350ms, p: current → 1)
+        //   ③ vertical expand (350ms, p: 1 → 2)
+        animate(panel, {
+          opacity: [0, 0.4, 0.1, 0.7, 1],
+          duration: 150,
+          delay: layerDelay,
+          ease: "steps(5)",
+        })
         animate(openRef.current, {
-          p: 2,
+          p: 1,
           duration: 350,
+          delay: layerDelay + 150,
           ease: "outExpo",
           onUpdate: () => applyShape(openRef.current.p),
+        }).then(() => {
+          if (shapeAnimationRunRef.current !== runId) return
+          animate(openRef.current, {
+            p: 2,
+            duration: 350,
+            ease: "outExpo",
+            onUpdate: () => applyShape(openRef.current.p),
+          })
         })
-      })
+      }
     } else {
-      // CLOSE (reverse of open):
+      // CLOSE (state === "hidden", reverse of open):
       //   ① content flicker out (320ms, handled by content effect)
       //   ② vertical collapse (350ms, p: current → 1)
       //   ③ horizontal collapse to small square (350ms, p: 1 → 0)
-      //   ④ boot-hidden flickers the tiny center square out; user-collapsed
-      //      panels keep that square visible as the reopen target.
+      //   ④ flickers the tiny center square out
       animate(openRef.current, {
         p: 1,
         duration: 350,
@@ -354,11 +490,6 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         )
         .then(() => {
           if (shapeAnimationRunRef.current !== runId) return
-          if (isCollapsed) {
-            panel.style.opacity = "1"
-            applyShape(0)
-            return
-          }
           animate(panel, {
             opacity: [1, 0.7, 0.1, 0.4, 0],
             duration: 150,
@@ -369,8 +500,12 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
 
     return () => {
       shapeAnimationRunRef.current += 1
+      if (collapseProgressRef.current) {
+        utils.remove(collapseProgressRef.current)
+        collapseProgressRef.current = null
+      }
     }
-  }, [state, isCollapsed, size.width, size.height, layerDelay, cornerSize, sizeRef])
+  }, [state, isCollapsed, size.width, size.height, layerDelay, cornerSize, uiScale, sizeRef])
 
   // Flicker the panel's content (non-SVG children) on visible/hidden transitions.
   // steps(5) gives the retro CRT-flicker feel from the source library's
@@ -385,7 +520,9 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         c instanceof HTMLElement &&
         !c.classList.contains("futuristic-panel") &&
         !c.classList.contains("fp-scan-beam") &&
-        !c.classList.contains("fp-corner-toggle"),
+        !c.classList.contains("fp-corner-toggle") &&
+        // Keep label group visible when collapsed so the header strip shows the title.
+        !(isCollapsed && c.classList.contains("fp-label-group")),
     )
     if (targets.length === 0) return
 
@@ -442,6 +579,12 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
   }
   const resolvedChildren = typeof children === "function" ? children(contentState) : children
 
+  // Render no content while collapsed. Render-prop children already return null
+  // when !active; plain children get the same treatment here. (Previously a
+  // frozen copy was kept mounted, which left it occupying height below the
+  // header strip and re-flickering whenever hover changed the panel state.)
+  const childrenToRender = isCollapsed ? null : resolvedChildren
+
   return (
     <div
       {...rest}
@@ -462,18 +605,6 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
           delay={layerDelay}
         />
       )}
-      {!disableCorner && size.width > 0 && (
-        <Corner
-          width={size.width}
-          height={size.height}
-          state={state}
-          color={color}
-          selectedColor={selectedColor}
-          size={cornerSize}
-          delay={layerDelay}
-          corners={corners}
-        />
-      )}
       {!disableCorner && size.width > 0 && corners.includes("lt") && (
         <button
           className="fp-corner-toggle fp-corner-toggle-lt"
@@ -487,7 +618,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
           }}
         />
       )}
-      {!disableCorner && size.width > 0 && corners.includes("rb") && (
+      {!disableCorner && size.width > 0 && !isCollapsed && corners.includes("rb") && (
         <button
           className="fp-corner-toggle fp-corner-toggle-rb"
           type="button"
@@ -500,9 +631,31 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
           }}
         />
       )}
-      {label && <span className="fp-label" aria-hidden>{label}</span>}
+      {!disableCorner && size.width > 0 && (
+        <StationVectorFrame
+          width={size.width}
+          height={size.height}
+          cornerSize={cornerSize * uiScale}
+          scale={uiScale}
+          color={color}
+          selectedColor={selectedColor}
+          selected={state === "selected"}
+          collapsed={isCollapsed}
+        />
+      )}
+      {(category || label) && (
+        <div className="fp-label-group" aria-hidden>
+          <div className="fp-grip">
+            <span /><span /><span />
+          </div>
+          <div className="fp-label-text">
+            {category && <span className="fp-cat">{category}</span>}
+            {label && <span className="fp-num">{label}</span>}
+          </div>
+        </div>
+      )}
       {scanning && state !== "hidden" && !isCollapsed && <span className="fp-scan-beam" aria-hidden />}
-      {resolvedChildren}
+      {childrenToRender}
     </div>
   )
 })

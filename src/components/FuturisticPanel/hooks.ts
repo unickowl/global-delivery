@@ -23,6 +23,39 @@ export function useElementSize<T extends HTMLElement>() {
   return [ref, size] as const
 }
 
+/**
+ * Effective HUD scale factor = root font-size / 16px. Captures both the
+ * automatic viewport clamp and the manual `--ui-scale` knob (styles.css sets
+ * `:root { font-size: calc(clamp(...) * var(--ui-scale)) }`). Frame detail
+ * sizes that live in absolute px (SVG stroke, corner size, ticks) multiply by
+ * this so the whole panel frame scales proportionally with the rem-based HUD.
+ */
+function readUiScale() {
+  if (typeof window === "undefined") return 1
+  const px = parseFloat(getComputedStyle(document.documentElement).fontSize)
+  return px > 0 ? px / 16 : 1
+}
+
+export function useUiScale() {
+  const [scale, setScale] = useState(readUiScale)
+
+  useEffect(() => {
+    const update = () => setScale(readUiScale())
+    update()
+    window.addEventListener("resize", update)
+    // --ui-scale is written to the documentElement style attribute by the
+    // HUD Scale slider; observe it so manual changes re-scale the frame live.
+    const observer = new MutationObserver(update)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] })
+    return () => {
+      window.removeEventListener("resize", update)
+      observer.disconnect()
+    }
+  }, [])
+
+  return scale
+}
+
 export function useHover<T extends HTMLElement>(ref: React.RefObject<T | null>) {
   const [hover, setHover] = useState(false)
 
