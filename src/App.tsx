@@ -172,7 +172,7 @@ function TransactionRow({
         </span>
       </div>
       <div className="tx-route-text">
-        {transaction.source.city} → {transaction.target.city}
+        {transaction.source.country} → {transaction.target.country}
       </div>
       <div className="tx-meta-line">
         <span>{transaction.source.currency} → {transaction.target.currency}</span>
@@ -197,7 +197,6 @@ function FocusTelemetry({ transaction, forceCollapsed }: { transaction: Transact
     ["RAIL", transaction.rail],
     ["AMOUNT", formatCompactMoney(amount)],
     ["FX / FEE", `${transaction.exchangeRate} · ${transaction.fee > 0 ? formatMoney(transaction.fee, "USD") : "—"}`],
-    ["RISK / POOL", `${transaction.riskScore} · ${transaction.liquidityPool}`],
   ]
 
   return (
@@ -211,7 +210,7 @@ function FocusTelemetry({ transaction, forceCollapsed }: { transaction: Transact
     >
       <div className="focus-telemetry-header">
         <span>{transaction.id}</span>
-        <span>{transaction.source.city} → {transaction.target.city}</span>
+        <span>{transaction.source.country} → {transaction.target.country}</span>
         <span>{transaction.status}</span>
       </div>
       <div className="focus-telemetry-grid">
@@ -761,9 +760,9 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
             <>
               <div className="detail-route">
                 <div className="detail-from-to">
-                  <span><ScrambleText value={selected.source.city} /></span>
+                  <span><ScrambleText value={selected.source.country} /></span>
                   <ArrowRight size={14} />
-                  <span><ScrambleText value={selected.target.city} /></span>
+                  <span><ScrambleText value={selected.target.country} /></span>
                 </div>
                 <div className="detail-amounts">
                   <span><ScrambleText value={formatMoney(selected.source.amount, selected.source.currency)} /></span>
@@ -786,7 +785,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
                 </div>
                 <div className="detail-stat">
                   <span className="ds-label">RISK</span>
-                  <span className="ds-val" style={{ color: selected.riskScore < 30 ? "var(--hud-green)" : "var(--hud-yellow)" }}><ScrambleText value={selected.riskScore} /></span>
+                  <span className="ds-val">—</span>
                 </div>
               </div>
             </>

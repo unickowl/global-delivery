@@ -1,6 +1,6 @@
 import type { Transaction } from "../../data/transactions"
 import { COUNTRY_COORDS } from "../../data/countryCoordinates"
-import { COUNTRY_CITIES } from "../../data/countryCities"
+import { countryNameFor } from "../../data/countryNames"
 import type { QuoteItem } from "./owlpayTypes"
 
 // Track country codes we've already warned about to avoid log spam across polls.
@@ -8,10 +8,6 @@ const warnedCountryCodes = new Set<string>()
 
 // Track payment methods we've already warned about to avoid log spam across polls.
 const warnedRailMethods = new Set<string>()
-
-function cityFor(code: string): string {
-  return COUNTRY_CITIES[code] ?? code
-}
 
 // Map payment_method from API to the Transaction rail enum.
 // API values seen: "wire", "ach", "sepa", "pix", "swift", "fps", "crypto".
@@ -70,8 +66,8 @@ export function quoteToTransaction(quote: QuoteItem): Transaction | null {
     direction,
     source: {
       name: quote.application?.name ?? "-",
-      city: cityFor(quote.sender_country),
-      country: quote.sender_country,
+      city: "",
+      country: countryNameFor(quote.sender_country),
       amount: isNaN(srcAmount) ? 0 : srcAmount,
       currency: quote.source_currency,
       lat: srcCoord.lat,
@@ -79,8 +75,8 @@ export function quoteToTransaction(quote: QuoteItem): Transaction | null {
     },
     target: {
       name: "-",
-      city: cityFor(quote.destination_country),
-      country: quote.destination_country,
+      city: "",
+      country: countryNameFor(quote.destination_country),
       amount: isNaN(dstAmount) ? 0 : dstAmount,
       currency: quote.destination_currency,
       lat: dstCoord.lat,
