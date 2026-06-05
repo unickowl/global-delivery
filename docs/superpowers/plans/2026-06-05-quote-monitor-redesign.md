@@ -27,7 +27,7 @@
 - Modify: `src/App.tsx` — replace panel content + card components, compute metrics, wire stablecoin/age into rows and track, add SIM badge.
 - Modify: `src/hooks/useLiveDashboard.ts` — slim to `{ transactions }` (+ subscription plumbing); drop the old derived fields.
 - Modify: `src/styles.css` — append the `rg-*` glow-ramp rules + keyframes.
-- Modify: `.env.local` — `VITE_OWLPAY_SIMULATE=0`.
+- Modify: `.env.local` — `VITE_OWLPAY_SIMULATE=false`.
 - Modify: `src/preview/metrics.ts` → delete; repoint `src/preview/DashboardPreview.tsx` imports to `monitorMetrics`. Keep `src/preview/mockQuotes.ts`, `preview.html`, `src/preview/main.tsx`.
 - Modify: `docs/api-enrichment-roadmap.md` — record the model-has-but-Resource-omits fields.
 
@@ -100,7 +100,7 @@
 
 - [ ] **Step 9: FocusTelemetry** — replace the `STABLECOIN`/`FIAT` chain logic with `stablecoinLeg(transaction)?.symbol ?? "FIAT"`; drop the `FX / FEE` item's fee half (show `FX*` only) or keep FX-only. Keep FLOW / STABLE / RAIL / AMOUNT.
 
-- [ ] **Step 10: Verify** — `pnpm exec tsc --noEmit` clean (no new errors vs pre-existing baseline); `pnpm build`; `pnpm lint`. Then **manual visual** with `VITE_OWLPAY_SIMULATE=0` (real ~60 quotes): confirm all 8 panels show real data, stablecoin symbol appears in queue/track, on/off-ramp glow bar renders, throughput window label reflects the data span. State that the visual step is manual.
+- [ ] **Step 10: Verify** — `pnpm exec tsc --noEmit` clean (no new errors vs pre-existing baseline); `pnpm build`; `pnpm lint`. Then **manual visual** with `VITE_OWLPAY_SIMULATE=false` (real ~60 quotes): confirm all 8 panels show real data, stablecoin symbol appears in queue/track, on/off-ramp glow bar renders, throughput window label reflects the data span. State that the visual step is manual.
 
 ---
 
@@ -122,11 +122,11 @@
 **Files:**
 - Modify: `.env.local`, `src/App.tsx`
 
-- [ ] **Step 1: Default off** — set `VITE_OWLPAY_SIMULATE=0` in `.env.local` (keep the explanatory comment). No change to `owlpaySimulator.ts` — synthetic txs clone a real adapted base, so their shape is already correct for the new panels.
+- [ ] **Step 1: Default off** — set `VITE_OWLPAY_SIMULATE=false` in `.env.local` (keep the explanatory comment). No change to `owlpaySimulator.ts` — synthetic txs clone a real adapted base, so their shape is already correct for the new panels.
 
-- [ ] **Step 2: SIM badge** — in `MonitorApp`, when `import.meta.env.VITE_OWLPAY_SIMULATE === "1"`, render a small fixed-corner `SIM` chip (reuse an existing HUD label class) so simulated runs are unmistakable. Skip entirely when off.
+- [ ] **Step 2: SIM badge** — in `MonitorApp`, when `import.meta.env.VITE_OWLPAY_SIMULATE === "true"`, render a small fixed-corner `SIM` chip (reuse an existing HUD label class) so simulated runs are unmistakable. Skip entirely when off.
 
-- [ ] **Step 3: Verify** — `pnpm build`. Manual: with `=1` the chip shows and the queue trickles/surges; with `=0` it's absent and data is the real poll. State manual.
+- [ ] **Step 3: Verify** — `pnpm build`. Manual: with `=true` the chip shows and the queue trickles/surges; with `=false` it's absent and data is the real poll. State manual.
 
 ---
 
@@ -159,7 +159,7 @@
 - [ ] **Step 1:** `pnpm exec tsc --noEmit` — no errors beyond the documented pre-existing baseline (`FuturisticPanel/`, `ThreeGlobeCanvas.tsx`, and the shared `*.css` TS2882 quirk). Compare against baseline before declaring clean.
 - [ ] **Step 2:** `pnpm build` — succeeds.
 - [ ] **Step 3:** `pnpm lint` — no new violations.
-- [ ] **Step 4: Manual visual checklist** at live (`pnpm dev`, port 13845), `VITE_OWLPAY_SIMULATE=0`: 8 panels populated from real quotes; stablecoin symbol in queue + track; corridors populated; glow ramp correct; throughput window = data span; clicking a row enters focus with stablecoin in telemetry; globe routes still draw. State that this is manual and cannot be auto-verified.
+- [ ] **Step 4: Manual visual checklist** at live (`pnpm dev`, port 13845), `VITE_OWLPAY_SIMULATE=false`: 8 panels populated from real quotes; stablecoin symbol in queue + track; corridors populated; glow ramp correct; throughput window = data span; clicking a row enters focus with stablecoin in telemetry; globe routes still draw. State that this is manual and cannot be auto-verified.
 - [ ] **Step 5: STOP.** Do not commit. Report completion + the manual-verification results and await the user's commit decision (count / repos / messages).
 
 ---

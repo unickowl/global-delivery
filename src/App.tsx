@@ -32,7 +32,7 @@ type Mode = "monitor" | "focus"
 
 const transactionSource = createTransactionSource()
 const USE_AUTH = import.meta.env.VITE_TRANSACTION_SOURCE === "owlpay"
-const SIMULATING = import.meta.env.VITE_OWLPAY_SIMULATE === "1"
+const SIMULATING = import.meta.env.VITE_OWLPAY_SIMULATE === "true"
 
 export const FLIGHT_DURATION = 6400
 const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#%·→/"

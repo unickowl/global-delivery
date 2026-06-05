@@ -25,7 +25,7 @@ export function useLiveDashboard({
       { maxTransactions, streamIntervalMs },
       (event) => {
         if (event.kind === "replace") {
-          setTransactions(event.transactions)
+          setTransactions(event.transactions.slice(0, maxTransactions))
         } else if (event.kind === "append") {
           setTransactions((current) =>
             [event.transaction, ...current].slice(0, maxTransactions),

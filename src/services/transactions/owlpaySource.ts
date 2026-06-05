@@ -11,7 +11,7 @@ import type {
 
 // When set, evolve the polled snapshot on the frontend so the dynamic polling
 // UX (trickle inserts, status updates, surge) is visible against a static mock.
-const SIMULATE = import.meta.env.VITE_OWLPAY_SIMULATE === "1"
+const SIMULATE = import.meta.env.VITE_OWLPAY_SIMULATE === "true"
 
 const POLL_MS = 10_000
 // Release one new transaction every TRICKLE_MS so the queue looks like a live stream.
@@ -40,9 +40,13 @@ export class OwlpayTransactionSource implements TransactionSource {
   }
 
   subscribe(
-    _options: TransactionSourceOptions,
+    options: TransactionSourceOptions,
     onEvent: (event: TransactionEvent) => void,
   ): TransactionSourceUnsubscribe {
+    // Hard cap on the in-memory buffer. Without it the buffer accumulates every
+    // transaction ever seen (aged-out ones are never dropped), leaking memory
+    // and growing per-poll work over a 24/7 session. Keep the newest `cap`.
+    const cap = Math.max(1, options.maxTransactions)
     let cancelled = false
     let firstPollDone = false
     let current: Transaction[] = []
@@ -84,10 +88,10 @@ export class OwlpayTransactionSource implements TransactionSource {
           // First successful poll — replace everything at once and warm the cache.
           // No trickle here: initial load should populate the globe immediately.
           firstPollDone = true
-          this.knownIds = new Set(next.map((t) => t.id))
-          current = next
-          this.cache = next
-          onEvent({ kind: "replace", transactions: next })
+          current = next.slice(0, cap)
+          this.knownIds = new Set(current.map((t) => t.id))
+          this.cache = current
+          onEvent({ kind: "replace", transactions: current })
           return
         }
 
@@ -107,7 +111,7 @@ export class OwlpayTransactionSource implements TransactionSource {
             `[OwlpaySource] surge mode: backlog=${trickleQueue.length} new=${newTxs.length} threshold=${TRICKLE_BATCH_MAX} — emitting replace snapshot`,
           )
           trickleQueue.length = 0
-          current = next.concat(current.filter((t) => !nextById.has(t.id)))
+          current = next.concat(current.filter((t) => !nextById.has(t.id))).slice(0, cap)
           this.cache = current
           this.knownIds = new Set(current.map((t) => t.id))
           onEvent({ kind: "replace", transactions: current })
@@ -127,7 +131,7 @@ export class OwlpayTransactionSource implements TransactionSource {
               }
             }
           }
-          current = next.concat(current.filter((t) => !nextById.has(t.id)))
+          current = next.concat(current.filter((t) => !nextById.has(t.id))).slice(0, cap)
           this.cache = current
           // Keep knownIds bounded to the active window.
           this.knownIds = new Set(current.map((t) => t.id))
