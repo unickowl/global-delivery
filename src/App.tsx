@@ -200,7 +200,8 @@ function FocusTelemetry({ transaction, forceCollapsed }: { transaction: Transact
     <FuturisticPanel
       className="hud-panel focus-telemetry"
       revealDelay={120}
-      label="FS-FOCUS // TX"
+      label="FS-FOCUS"
+      category="TX"
       cornerSize={8}
       forceCollapsed={forceCollapsed}
       aria-label="Focused transaction telemetry"
@@ -654,7 +655,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         )}
 
         {/* HUD: Top-left system status */}
-        <FuturisticPanel className="hud-panel panel-system" revealDelay={0} label="FS-00 // CORE" forceCollapsed={cardsCollapsed}>
+        <FuturisticPanel className="hud-panel panel-system" revealDelay={0} label="FS-00" category="Core" forceCollapsed={cardsCollapsed}>
           <div className="live-dot" />
           <div className="system-text">
             <strong>OWLPAY</strong> · Global rails online · {live.railUptime.toFixed(2)}%
@@ -662,7 +663,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         </FuturisticPanel>
 
         {/* HUD: Top-right operations status */}
-        <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01 // OPS" forceCollapsed={cardsCollapsed}>
+        <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01" category="Ops Status" forceCollapsed={cardsCollapsed}>
           {[
             ["KYT", `${live.transactions.filter((tx) => tx.riskScore >= 30 || tx.status === "failed").length} watch`],
             ["LIQ", `${Math.max(...live.pools.map((pool) => pool.utilization))}% peak`],
@@ -676,7 +677,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         </FuturisticPanel>
 
         {/* HUD: Left metrics */}
-        <FuturisticPanel className="hud-panel panel-metrics" revealDelay={200} label="FS-02 // LOAD" forceCollapsed={cardsCollapsed}>
+        <FuturisticPanel className="hud-panel panel-metrics" revealDelay={200} label="FS-02" category="Network Load" forceCollapsed={cardsCollapsed}>
           <div className="hud-label">Network Load</div>
           <div className="metric-item">
             <div className="metric-val">{formatCompactMoney(live.volume24h)}</div>
@@ -687,7 +688,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         </FuturisticPanel>
 
         {/* HUD: Left-bottom liquidity */}
-        <FuturisticPanel className="hud-panel panel-liquidity" revealDelay={280} label="FS-03 // LIQ" forceCollapsed={cardsCollapsed}>
+        <FuturisticPanel className="hud-panel panel-liquidity" revealDelay={280} label="FS-03" category="Liquidity" forceCollapsed={cardsCollapsed}>
           <div className="hud-label">Liquidity Pools</div>
           {live.pools.map((pool) => (
             <div className="pool-item" key={pool.name}>
@@ -703,7 +704,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         </FuturisticPanel>
 
         {/* HUD: Right transaction queue */}
-        <FuturisticPanel className="hud-panel panel-transactions" revealDelay={360} label="FS-04 // QUEUE" forceCollapsed={cardsCollapsed}>
+        <FuturisticPanel className="hud-panel panel-transactions" revealDelay={360} label="FS-04" category="Queue" forceCollapsed={cardsCollapsed}>
           {({ active, loading }) => (
             loading ? <PanelLoading label="syncing queue" /> : active ? (
               <>
@@ -728,13 +729,13 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
 
         {mode === "monitor" && (
           <div className="dashboard-rail" aria-label="Operational dashboard charts">
-            <FuturisticPanel className="hud-panel panel-dashboard-card panel-flow-health" revealDelay={520} label="FS-06 // HEALTH" forceCollapsed={cardsCollapsed}>
+            <FuturisticPanel className="hud-panel panel-dashboard-card panel-flow-health" revealDelay={520} label="FS-06" category="Health" forceCollapsed={cardsCollapsed}>
               {({ active, loading }) => loading ? <PanelLoading label="loading health" /> : active ? <FlowHealthCard transactions={live.transactions} medianSettlementSeconds={live.medianSettlementSeconds} /> : null}
             </FuturisticPanel>
-            <FuturisticPanel className="hud-panel panel-dashboard-card panel-live-volume" revealDelay={600} label="FS-07 // VOLUME" forceCollapsed={cardsCollapsed} scanning>
+            <FuturisticPanel className="hud-panel panel-dashboard-card panel-live-volume" revealDelay={600} label="FS-07" category="Volume" forceCollapsed={cardsCollapsed} scanning>
               {({ active, loading }) => loading ? <PanelLoading label="loading volume" /> : active ? <LiveVolumeCard series={dashboardMetrics.volumeSeries} volume24h={live.volume24h} /> : null}
             </FuturisticPanel>
-            <FuturisticPanel className="hud-panel panel-dashboard-card panel-chain-mix" revealDelay={680} label="FS-08 // MIX" forceCollapsed={cardsCollapsed}>
+            <FuturisticPanel className="hud-panel panel-dashboard-card panel-chain-mix" revealDelay={680} label="FS-08" category="Mix" forceCollapsed={cardsCollapsed}>
               {({ active, loading }) => loading ? <PanelLoading label="loading mix" /> : active ? <ChainAssetMixCard chains={dashboardMetrics.chainMix} assets={dashboardMetrics.assetMix} /> : null}
             </FuturisticPanel>
           </div>
@@ -744,7 +745,8 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         <FuturisticPanel
           className="hud-panel panel-detail"
           revealDelay={450}
-          label="FS-05 // TRACK"
+          label="FS-05"
+          category="Track"
           scanning
           forceCollapsed={cardsCollapsed}
         >
