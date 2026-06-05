@@ -844,10 +844,14 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   top: 16px;
   right: 16px;
   padding: 10px 14px;
+  width: 300px;
+}
+
+.magi-row {
   display: flex;
   flex-direction: row;
   gap: 12px;
-  width: 300px;
+  margin-top: 8px;
 }
 
 .magi-node {
@@ -956,11 +960,15 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   width: min(680px, calc(100% - 360px));
   min-width: 420px;
   padding: 12px 20px;
+  overflow: hidden;
+}
+
+.detail-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
-  overflow: hidden;
+  margin-top: 10px;
 }
 
 .dashboard-rail {
@@ -2043,6 +2051,8 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   .panel-detail {
     width: min(560px, calc(100% - 32px));
     min-width: 0;
+  }
+  .detail-body {
     grid-template-columns: 1fr;
     gap: 10px;
   }

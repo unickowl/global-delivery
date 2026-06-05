@@ -664,21 +664,22 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
 
         {/* HUD: Top-right operations status */}
         <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01" category="Ops Status" forceCollapsed={cardsCollapsed}>
-          {[
-            ["KYT", `${live.transactions.filter((tx) => tx.riskScore >= 30 || tx.status === "failed").length} watch`],
-            ["LIQ", `${Math.max(...live.pools.map((pool) => pool.utilization))}% peak`],
-            ["RAIL", `${live.transactions.filter((tx) => tx.status === "failed").length} fail`],
-          ].map(([name, value]) => (
-            <div className="magi-node" key={name}>
-              <span className="magi-name">{name}</span>
-              <span className="magi-status">{value}</span>
-            </div>
-          ))}
+          <div className="magi-row">
+            {[
+              ["KYT", `${live.transactions.filter((tx) => tx.riskScore >= 30 || tx.status === "failed").length} watch`],
+              ["LIQ", `${Math.max(...live.pools.map((pool) => pool.utilization))}% peak`],
+              ["RAIL", `${live.transactions.filter((tx) => tx.status === "failed").length} fail`],
+            ].map(([name, value]) => (
+              <div className="magi-node" key={name}>
+                <span className="magi-name">{name}</span>
+                <span className="magi-status">{value}</span>
+              </div>
+            ))}
+          </div>
         </FuturisticPanel>
 
         {/* HUD: Left metrics */}
         <FuturisticPanel className="hud-panel panel-metrics" revealDelay={200} label="FS-02" category="Network Load" forceCollapsed={cardsCollapsed}>
-          <div className="hud-label">Network Load</div>
           <div className="metric-item">
             <div className="metric-val">{formatCompactMoney(live.volume24h)}</div>
             <div className="metric-change">{live.volumeChange >= 0 ? "+" : ""}{live.volumeChange.toFixed(1)}% ▲</div>
@@ -689,7 +690,6 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
 
         {/* HUD: Left-bottom liquidity */}
         <FuturisticPanel className="hud-panel panel-liquidity" revealDelay={280} label="FS-03" category="Liquidity" forceCollapsed={cardsCollapsed}>
-          <div className="hud-label">Liquidity Pools</div>
           {live.pools.map((pool) => (
             <div className="pool-item" key={pool.name}>
               <div className="pool-name">
@@ -708,7 +708,6 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
           {({ active, loading }) => (
             loading ? <PanelLoading label="syncing queue" /> : active ? (
               <>
-                <div className="hud-label">Transaction Queue</div>
                 <div className="tx-list-scroll">
                   {live.transactions.slice(0, globeSettings.transactionListSize).map((tx, i) => (
                     <TransactionRow
@@ -751,7 +750,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
           forceCollapsed={cardsCollapsed}
         >
           {({ active, loading }) => loading ? <PanelLoading label="loading track" /> : active ? (
-            <>
+            <div className="detail-body">
               <div className="detail-route">
                 <div className="detail-from-to">
                   <span><ScrambleText value={selected.source.city} /></span>
@@ -782,7 +781,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
                   <span className="ds-val" style={{ color: selected.riskScore < 30 ? "var(--hud-green)" : "var(--hud-yellow)" }}><ScrambleText value={selected.riskScore} /></span>
                 </div>
               </div>
-            </>
+            </div>
           ) : null}
         </FuturisticPanel>
 
