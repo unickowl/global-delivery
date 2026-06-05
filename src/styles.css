@@ -526,31 +526,15 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   min-height: 0;
 }
 
-.futuristic-panel[data-fp-collapsed="true"]::before {
-  opacity: 0.28;
-  background:
-    linear-gradient(135deg, var(--fp-accent, var(--hud-cyan)) 0 49%, transparent 50%),
-    linear-gradient(315deg, var(--fp-accent, var(--hud-cyan)) 0 49%, transparent 50%);
-  filter: drop-shadow(0 0 10px var(--fp-accent, var(--hud-cyan)));
-}
-
-.futuristic-panel[data-fp-collapsed="true"]::after {
-  opacity: 0;
-}
-
 .futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle {
-  opacity: 1;
-  background:
-    linear-gradient(135deg, rgba(232, 251, 255, 0.22), transparent 42%),
-    color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 42%, rgba(4, 10, 18, 0.86));
-  border: 1px solid color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 74%, transparent);
-  box-shadow:
-    0 0 16px color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 36%, transparent),
-    inset 0 0 10px rgba(232, 251, 255, 0.08);
+  opacity: 0.52;
+  background: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 14%, transparent);
 }
 
 .futuristic-panel[data-fp-collapsed="true"] > .fp-corner-toggle:hover {
-  filter: brightness(1.28) drop-shadow(0 0 8px var(--fp-accent, var(--hud-cyan)));
+  opacity: 0.85;
+  background: color-mix(in srgb, var(--fp-accent, var(--hud-cyan)) 24%, transparent);
+  filter: drop-shadow(0 0 6px var(--fp-accent, var(--hud-cyan)));
 }
 
 /* Glitch layer — duplicates the grain with a slight horizontal offset and

@@ -2,7 +2,6 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react"
 import { animate, utils } from "animejs"
 import { Border } from "./Border"
-import { Corner } from "./Corner"
 import { StationVectorFrame } from "./StationVectorFrame"
 import { useBoot } from "./context"
 import { useElementSize, useHover } from "./hooks"
@@ -29,7 +28,6 @@ export interface FuturisticPanelProps extends Omit<HTMLAttributes<HTMLDivElement
   /** Disable border lines entirely. Defaults to true — the panel relies on
    *  a chamfered clip-path shape rather than drawn perimeter lines. */
   disableBorder?: boolean
-  /** Which corners to render as filled triangles. */
   corners?: CornerKey[]
   /** Primary descriptive label shown at the top of the panel (e.g. "OPS STATUS"). */
   category?: string
@@ -247,8 +245,6 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     if (!panel || size.width === 0 || size.height === 0) return
     const runId = (shapeAnimationRunRef.current += 1)
 
-    const ltGroup = panel.querySelector<SVGGElement>('[data-corner-group="lt"]')
-    const rbGroup = panel.querySelector<SVGGElement>('[data-corner-group="rb"]')
     const ltToggle = panel.querySelector<HTMLButtonElement>('[data-corner-toggle="lt"]')
     const rbToggle = panel.querySelector<HTMLButtonElement>('[data-corner-toggle="rb"]')
 
@@ -262,8 +258,6 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
       const phase1 = Math.min(p, 1)
       const phase2 = Math.max(p - 1, 0)
 
-      // Visible region half-dimensions: starts as a cs×cs square at center,
-      // grows to full size as the two phases progress.
       const halfW = cs / 2 + (cw / 2 - cs / 2) * phase1
       const halfH = cs / 2 + (ch / 2 - cs / 2) * phase2
 
@@ -272,17 +266,10 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
       const top = cy - halfH
       const bottom = cy + halfH
 
-      // Chamfer + corner-overflow only fade in during phase 2 — while the
-      // panel is still a band, the visible region is a plain rectangle.
-      // Scale the chamfer with cornerSize so small panels (tx rows, coords)
-      // get proportionally smaller cuts.
       const cham = (cs + 16) * phase2
-      const overflow = cs * phase2
 
-      panel.style.clipPath = `polygon(${left - overflow}px ${top - overflow}px, ${right - cham}px ${top}px, ${right}px ${top + cham}px, ${right + overflow}px ${bottom + overflow}px, ${left + cham}px ${bottom}px, ${left}px ${bottom - cham}px)`
+      panel.style.clipPath = `polygon(${left}px ${top}px, ${right - cham}px ${top}px, ${right}px ${top + cham}px, ${right}px ${bottom}px, ${left + cham}px ${bottom}px, ${left}px ${bottom - cham}px)`
 
-      if (ltGroup) ltGroup.setAttribute("transform", `translate(${left} ${top})`)
-      if (rbGroup) rbGroup.setAttribute("transform", `translate(${right - cs} ${bottom - cs})`)
       if (ltToggle) {
         ltToggle.style.transform = `translate(${left}px, ${top}px)`
         ltToggle.style.width = `${cs}px`
@@ -309,12 +296,10 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         : 52
       const cw = size.width
       const cham = cornerSize + 16
-      const ovf = cornerSize
 
       const applyHeaderStrip = () => {
-        panel.style.clipPath = `polygon(${-ovf}px ${-ovf}px, ${cw - cham}px 0, ${cw}px ${cham}px, ${cw}px ${headerH}px, 0 ${headerH}px)`
+        panel.style.clipPath = `polygon(0px 0px, ${cw - cham}px 0, ${cw}px ${cham}px, ${cw}px ${headerH}px, 0 ${headerH}px)`
         panel.style.opacity = "1"
-        if (ltGroup) ltGroup.setAttribute("transform", `translate(0 0)`)
         if (ltToggle) {
           ltToggle.style.transform = `translate(0px, 0px)`
           ltToggle.style.width = `${cornerSize}px`
@@ -323,14 +308,12 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
       }
 
       if (openRef.current.p < 1.5) {
-        // Already compact (re-render while collapsed) — snap directly.
         applyHeaderStrip()
         openRef.current.p = 0
         wasCollapsedRef.current = true
         return
       }
 
-      // Animate bottom edge from full panel height up to headerH.
       const progress = { bottom: size.height }
       animate(progress, {
         bottom: headerH,
@@ -339,7 +322,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
         ease: "inExpo",
         onUpdate: () => {
           if (shapeAnimationRunRef.current !== runId) return
-          panel.style.clipPath = `polygon(${-ovf}px ${-ovf}px, ${cw - cham}px 0, ${cw}px ${cham}px, ${cw}px ${progress.bottom}px, 0 ${progress.bottom}px)`
+          panel.style.clipPath = `polygon(0px 0px, ${cw - cham}px 0, ${cw}px ${cham}px, ${cw}px ${progress.bottom}px, 0 ${progress.bottom}px)`
         },
       }).then(() => {
         if (shapeAnimationRunRef.current !== runId) return
@@ -527,18 +510,6 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
           selectedColor={selectedColor}
           strokeWidth={strokeWidth}
           delay={layerDelay}
-        />
-      )}
-      {!disableCorner && size.width > 0 && (
-        <Corner
-          width={size.width}
-          height={size.height}
-          state={state}
-          color={color}
-          selectedColor={selectedColor}
-          size={cornerSize}
-          delay={layerDelay}
-          corners={corners}
         />
       )}
       {!disableCorner && size.width > 0 && corners.includes("lt") && (
