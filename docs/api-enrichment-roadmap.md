@@ -27,11 +27,39 @@
 
 ---
 
+## 重大發現：Resource 是 Quote model 的窄投影
+
+> **更新於 2026-06-05（重設計調查結果）**
+
+`GET /api/v1/quotes` 由 `owlpay_bank_module` 的 `app/Http/Resources/Application/V1/QuoteHistoryResource.php` 提供，目前僅暴露 13 個欄位。然而，底層的 `app/Models/Quote.php` model 擁有約 40 個可填寫欄位——**前端目前隱藏或標示為 `"—"` 的大多數資料，其實已存在於 model 中，只是未被 Resource 暴露**。這意味著大部分「豐富化」工作並非資料建立，而是對 Resource 的一行式改動。
+
+下表列出已在 `Quote` model 中存在（含型別/Cast）但被目前 Resource 省略的欄位，以及暴露後可解鎖的前端維度：
+
+| 欄位（model） | 型別 / Enum | 解鎖的前端維度 |
+|---|---|---|
+| `blockchain` / `destination_blockchain` | `ChainEnum`（stellar, ethereum, avalanche, polygon, arbitrum, optimism, solana） | 真實「鏈」維度 — FS-08 真正該有的軸：USDC 在哪些鏈上流動 |
+| `exchange_rate` | decimal:6 | 真實匯率（前端目前用 source/destination 金額反推，標示為 `FX*`） |
+| `exchange_pair` | string | 交易對 |
+| `fees_total_amount` / `fees_total_currency` | decimal:6 | 真實手續費（前端目前 `fee=0`、顯示 `—`） |
+| `owlpay_fees_total_amount` / `owlpay_fees_currency` | decimal:6 | OwlPay 收取的費用 |
+| `fiat_settlement_time_min` / `fiat_settlement_time_max` / `fiat_settlement_time_unit` | int / string | 真實結算時間估計（見 P1 §3 更正說明） |
+| `provider` | `QuoteProviderEnum` | 結算服務商（目前在 Resource 內被註解掉） |
+| `settlement_channel` | string | 結算通道 |
+| `quote_expire_date` | datetime | 報價到期時間 |
+
+**注意**：`blockchain` / `destination_blockchain` 在目前 seed 資料中為 NULL（`MockQuoteSeeder` 未填入），要在本地環境呈現鏈維度，需同時：(1) Resource 暴露欄位，(2) seeder 補值。風險評分（`riskScore`）與流動性池則是 model 層級也沒有的資料，屬真正的資料缺口，無法靠 Resource 改動解決。
+
+**後端行動點**：僅需修改 `QuoteHistoryResource::toArray()` 加入對應欄位，成本極低。
+
+---
+
 ## 落差清單與補充建議
 
 ### 優先級 P0 — 少量改動，大幅提升資訊正確性
 
 #### 1. 手續費 (`fee`)
+
+> 此欄位已在 `Quote` model 存在，詳見上方「重大發現」章節；解決方案為純 Resource 改動。
 
 **現況**：UI 的 FS-05 // TRACK 和 FS-FOCUS 的 FEE 欄位顯示 `"—"`。  
 **Quote model 有**：`fees_total_amount`、`fees_total_currency`。  
@@ -47,6 +75,8 @@
 ---
 
 #### 2. 區塊鏈 / Chain 資訊
+
+> 此欄位已在 `Quote` model 存在，詳見上方「重大發現」章節；本地顯示需同步在 seeder 補入測試值。
 
 **現況**：FS-04 // QUEUE 的 stablecoin chain badge（如 `USDC/Base`）和 FS-08 // MIX 的 Chain Mix 皆無資料，Chain Mix 整個區塊已隱藏。  
 **Quote model 有**：`blockchain`（source chain）、`destination_blockchain`（target chain）。  
@@ -88,6 +118,8 @@
 ```
 
 前端可從 `settled_at - created_at` 計算每筆結算秒數，進而算出真實 P50/P95。
+
+> **更正（2026-06-05）**：上述評估部分已被重設計調查結果修正。`Quote` model 已包含每筆報價的結算時間**估計值**欄位：`fiat_settlement_time_min`、`fiat_settlement_time_max`、`fiat_settlement_time_unit`，只需在 `QuoteHistoryResource` 暴露即可在前端顯示每筆估計區間（無需新端點）。真實實現的 P50/P95 統計值仍需歷史聚合（方案 A/B 仍適用）。目前 live monitor 以「最舊待處理交易的等待時長」作為結算時間代理指標，待 `fiat_settlement_time_*` 欄位暴露後可替換為逐筆估計值。
 
 ---
 
