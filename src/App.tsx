@@ -656,9 +656,11 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
 
         {/* HUD: Top-left system status */}
         <FuturisticPanel className="hud-panel panel-system" revealDelay={0} label="FS-00" category="Core" forceCollapsed={cardsCollapsed}>
-          <div className="live-dot" />
-          <div className="system-text">
-            <strong>OWLPAY</strong> · Global rails online · {live.railUptime.toFixed(2)}%
+          <div className="system-row">
+            <div className="live-dot" />
+            <div className="system-text">
+              <strong>OWLPAY</strong> · Global rails online · {live.railUptime.toFixed(2)}%
+            </div>
           </div>
         </FuturisticPanel>
 

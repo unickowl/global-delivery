@@ -830,10 +830,14 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   top: 16px;
   left: 16px;
   padding: 10px 16px;
+}
+
+.system-row {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 10px;
+  margin-top: 8px;
 }
 
 .system-text {
@@ -890,21 +894,21 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 }
 
 .panel-metrics {
-  top: 70px;
+  top: 118px;
   left: 16px;
   width: 190px;
   padding: 14px;
 }
 
 .panel-liquidity {
-  bottom: 80px;
+  bottom: 160px;
   left: 16px;
   width: 190px;
   padding: 14px;
 }
 
 .panel-transactions {
-  top: 104px;
+  top: 128px;
   right: 16px;
   width: 300px;
   overflow: hidden;
@@ -912,7 +916,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 }
 
 .tx-list-scroll {
-  max-height: calc(100vh - 250px);
+  max-height: calc(100vh - 200px);
   margin-top: 8px;
   padding-right: 8px;
   overflow-y: auto;
@@ -982,7 +986,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   position: absolute;
   left: 224px;
   right: 332px;
-  bottom: 108px;
+  bottom: 156px;
   z-index: 9;
   display: grid;
   grid-template-columns: repeat(3, minmax(170px, 1fr));
@@ -1580,7 +1584,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
 .focus-telemetry {
   position: absolute;
   left: 50%;
-  bottom: 108px;
+  bottom: 156px;
   z-index: 11;
   width: min(920px, calc(100% - 360px));
   transform: translateX(-50%);
@@ -2036,13 +2040,13 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   .globe-control-strip {
     top: 72px;
   }
-  .panel-transactions { top: auto; bottom: 70px; right: 16px; max-height: 40vh; overflow-y: auto; }
+  .panel-transactions { top: auto; bottom: 84px; right: 16px; max-height: 40vh; overflow-y: auto; }
   .panel-metrics { width: 130px; }
-  .panel-liquidity { width: 130px; }
+  .panel-liquidity { width: 130px; bottom: 180px; }
   .dashboard-rail {
     left: 162px;
     right: 162px;
-    bottom: 128px;
+    bottom: 176px;
     grid-template-columns: repeat(3, minmax(130px, 1fr));
   }
   .dashboard-rail .hud-panel {
@@ -2069,7 +2073,7 @@ button { font: inherit; border: none; background: none; cursor: pointer; }
   }
   .focus-telemetry {
     width: calc(100% - 32px);
-    bottom: 142px;
+    bottom: 176px;
   }
   .focus-telemetry-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
