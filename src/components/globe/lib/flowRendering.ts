@@ -10,9 +10,10 @@ import { renderFlowCount } from "./settings"
 export function lineSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState, largeOnly: boolean, now: number) {
   const positions: number[] = []
   const targetCount = renderFlowCount(settings)
-  const active = flows.slice(0, targetCount)
+  const limit = Math.min(flows.length, targetCount)
 
-  for (const flow of active) {
+  for (let flowIndex = 0; flowIndex < limit; flowIndex += 1) {
+    const flow = flows[flowIndex]
     if (flow.status === "failed") continue
     if (flow.isLarge !== largeOnly) continue
     const fade = flow.usesAnime ? flow.fadeAlpha : flow.phase === "fading" ? 1 - clamp((now - flow.phaseStartedAt) / FADING_MS, 0, 1) : 1
@@ -49,8 +50,10 @@ export function shimmerSegmentsFromFlows(flows: FlowTx[], settings: GlobeSetting
   const midPositions: number[] = []
   const headPositions: number[] = []
   const targetCount = renderFlowCount(settings)
+  const limit = Math.min(flows.length, targetCount)
   const normalFlowSpeed = settings.normalFlowSpeed ?? 1
-  for (const flow of flows.slice(0, targetCount)) {
+  for (let flowIndex = 0; flowIndex < limit; flowIndex += 1) {
+    const flow = flows[flowIndex]
     if (flow.status === "failed") continue
     if (flow.isLarge || flow.phase === "arriving" || flow.phase === "landing" || flow.phase === "fading") continue
     const drawLimit = flow.phase === "drawing" ? clamp(flow.drawProgress, 0, 1) : 1
@@ -86,7 +89,9 @@ export function largeTrailSegmentsFromFlows(flows: FlowTx[], settings: GlobeSett
 export function failedSegmentsFromFlows(flows: FlowTx[], settings: GlobeSettingsState, now: number) {
   const positions: number[] = []
   const targetCount = renderFlowCount(settings)
-  for (const flow of flows.slice(0, targetCount)) {
+  const limit = Math.min(flows.length, targetCount)
+  for (let flowIndex = 0; flowIndex < limit; flowIndex += 1) {
+    const flow = flows[flowIndex]
     if (flow.status !== "failed") continue
     const fade = flow.phase === "fading" ? 1 - clamp((now - flow.phaseStartedAt) / FADING_MS, 0, 1) : flow.fadeAlpha
     if (fade <= 0.03) continue

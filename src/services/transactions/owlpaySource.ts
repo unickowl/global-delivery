@@ -23,6 +23,36 @@ const TRICKLE_BATCH_MAX = Math.floor(POLL_MS / TRICKLE_MS) // ~6
 // backlog and switching to snapshot mode. Absorbs normal timing jitter
 // between the trickle timer and the poll interval.
 const TRICKLE_BACKLOG_MAX = 2
+// Keep in sync with the globe's MAX_FLOWS (globe/lib/constants.ts). This module
+// intentionally avoids importing from components to keep service dependencies one-way.
+const MAX_ACTIVE_TRANSACTIONS = 300
+const MAX_KNOWN_IDS = 1_000
+
+function transactionCap(value: number) {
+  return Math.min(MAX_ACTIVE_TRANSACTIONS, Math.max(1, Math.round(value)))
+}
+
+function mergeActiveTransactions(
+  next: Transaction[],
+  current: Transaction[],
+  cap: number,
+) {
+  const nextById = new Set(next.map((t) => t.id))
+  return next.concat(current.filter((t) => !nextById.has(t.id))).slice(0, cap)
+}
+
+function rebuildKnownIds(
+  next: Transaction[],
+  current: Transaction[],
+  trickleQueue: Transaction[],
+) {
+  const known = new Set<string>()
+  for (const t of next) known.add(t.id)
+  for (const t of current) known.add(t.id)
+  for (const t of trickleQueue) known.add(t.id)
+  if (known.size <= MAX_KNOWN_IDS) return known
+  return new Set(Array.from(known).slice(0, MAX_KNOWN_IDS))
+}
 
 export class OwlpayTransactionSource implements TransactionSource {
   private endpoint: string
@@ -43,10 +73,7 @@ export class OwlpayTransactionSource implements TransactionSource {
     options: TransactionSourceOptions,
     onEvent: (event: TransactionEvent) => void,
   ): TransactionSourceUnsubscribe {
-    // Hard cap on the in-memory buffer. Without it the buffer accumulates every
-    // transaction ever seen (aged-out ones are never dropped), leaking memory
-    // and growing per-poll work over a 24/7 session. Keep the newest `cap`.
-    const cap = Math.max(1, options.maxTransactions)
+    const cap = transactionCap(options.maxTransactions)
     let cancelled = false
     let firstPollDone = false
     let current: Transaction[] = []
@@ -89,7 +116,7 @@ export class OwlpayTransactionSource implements TransactionSource {
           // No trickle here: initial load should populate the globe immediately.
           firstPollDone = true
           current = next.slice(0, cap)
-          this.knownIds = new Set(current.map((t) => t.id))
+          this.knownIds = rebuildKnownIds(next, current, trickleQueue)
           this.cache = current
           onEvent({ kind: "replace", transactions: current })
           return
@@ -104,16 +131,14 @@ export class OwlpayTransactionSource implements TransactionSource {
         // → Discard pending trickle, emit a full snapshot instead.
         const surgeMode = hasBacklog || newTxs.length > TRICKLE_BATCH_MAX
 
-        const nextById = new Map(next.map((t) => [t.id, t]))
-
         if (surgeMode) {
           console.warn(
             `[OwlpaySource] surge mode: backlog=${trickleQueue.length} new=${newTxs.length} threshold=${TRICKLE_BATCH_MAX} — emitting replace snapshot`,
           )
           trickleQueue.length = 0
-          current = next.concat(current.filter((t) => !nextById.has(t.id))).slice(0, cap)
+          current = mergeActiveTransactions(next, current, cap)
           this.cache = current
-          this.knownIds = new Set(current.map((t) => t.id))
+          this.knownIds = rebuildKnownIds(next, current, trickleQueue)
           onEvent({ kind: "replace", transactions: current })
         } else {
           // Build an O(1) lookup for status-change detection.
@@ -131,10 +156,9 @@ export class OwlpayTransactionSource implements TransactionSource {
               }
             }
           }
-          current = next.concat(current.filter((t) => !nextById.has(t.id))).slice(0, cap)
+          current = mergeActiveTransactions(next, current, cap)
           this.cache = current
-          // Keep knownIds bounded to the active window.
-          this.knownIds = new Set(current.map((t) => t.id))
+          this.knownIds = rebuildKnownIds(next, current, trickleQueue)
         }
       } catch (err) {
         console.error("[OwlpaySource] poll error:", err)

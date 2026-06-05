@@ -30,7 +30,7 @@ import {
 import { effectiveGlobeSettings } from "./lib/settings"
 import {
   type GlobeMode, type FlowTx,
-  cancelFlowAnimations, updateFlows, seedInitialTransactionFlows,
+  buildFlowTransactionLookup, cancelFlowAnimations, updateFlows, seedInitialTransactionFlows,
 } from "./lib/flow"
 import {
   lineSegmentsFromFlows, shimmerSegmentsFromFlows,
@@ -65,6 +65,7 @@ export function ThreeGlobeCanvas({
   phiRef,
   thetaRef,
 }: ThreeGlobeCanvasProps) {
+  const initialFlowSettings = effectiveGlobeSettings(globeSettings, fullPerformance)
   const hostRef = useRef<HTMLDivElement>(null)
   const flightCanvasRef = useRef<HTMLCanvasElement>(null)
   const sourceLabelRef = useRef<HTMLDivElement>(null)
@@ -73,6 +74,12 @@ export function ThreeGlobeCanvas({
   const latestRef = useRef({ transactions, selected, mode, routesReady, flightStartedAt, onFlightDone, globeSettings, fullPerformance })
   const dragRef = useRef({ active: false, startX: 0, startY: 0, startPhi: 0, startTheta: 0, velocity: 0, lastX: 0, lastT: 0 })
   const flowsRef = useRef<FlowTx[]>([])
+  const flowLookupRef = useRef(buildFlowTransactionLookup(transactions, initialFlowSettings))
+  const flowLookupInputRef = useRef({
+    transactions,
+    flowCount: initialFlowSettings.flowCount,
+    renderFlowCap: initialFlowSettings.renderFlowCap,
+  })
   const routesSeededRef = useRef(false)
   const lastAddRef = useRef(0)
   const focusMotionRef = useRef({ glow: 1, trail: 0, worldDim: 1 })
@@ -421,6 +428,19 @@ export function ThreeGlobeCanvas({
       globeGroup.scale.lerp(focusScaleVector, 0.06)
 
       if (current.routesReady) {
+        const lookupInput = flowLookupInputRef.current
+        if (
+          lookupInput.transactions !== current.transactions ||
+          lookupInput.flowCount !== globeSettings.flowCount ||
+          lookupInput.renderFlowCap !== globeSettings.renderFlowCap
+        ) {
+          flowLookupRef.current = buildFlowTransactionLookup(current.transactions, globeSettings)
+          flowLookupInputRef.current = {
+            transactions: current.transactions,
+            flowCount: globeSettings.flowCount,
+            renderFlowCap: globeSettings.renderFlowCap,
+          }
+        }
         if (!routesSeededRef.current) {
           for (const flow of flowsRef.current) cancelFlowAnimations(flow)
           flowsRef.current = seedInitialTransactionFlows(now, current.transactions, globeSettings)
@@ -428,7 +448,7 @@ export function ThreeGlobeCanvas({
           lastAddRef.current = now
           lastGeometryUpdate = 0
         }
-        updateFlows(now, flowsRef.current, current.transactions, globeSettings, lastAddRef)
+        updateFlows(now, flowsRef.current, flowLookupRef.current, globeSettings, lastAddRef)
       } else if (flowsRef.current.length > 0) {
         for (const flow of flowsRef.current) cancelFlowAnimations(flow)
         flowsRef.current = []

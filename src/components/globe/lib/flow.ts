@@ -33,6 +33,26 @@ export type FlowTx = {
   animations: Array<ReturnType<typeof animate>>
 }
 
+export type FlowTransactionLookup = {
+  transactions: Transaction[]
+  activeTransactions: Transaction[]
+  activeIds: Set<string>
+  transactionById: Map<string, Transaction>
+}
+
+export function buildFlowTransactionLookup(
+  transactions: Transaction[],
+  settings: GlobeSettingsState,
+): FlowTransactionLookup {
+  const activeTransactions = transactions.slice(0, renderFlowCount(settings))
+  return {
+    transactions,
+    activeTransactions,
+    activeIds: new Set(activeTransactions.map((tx) => tx.id)),
+    transactionById: new Map(activeTransactions.map((tx) => [tx.id, tx])),
+  }
+}
+
 export function logNormalAmount() {
   const u = 1 - Math.random()
   const v = 1 - Math.random()
@@ -254,11 +274,10 @@ export function startFlowAnimation(flow: FlowTx, settings: GlobeSettingsState) {
   }
 }
 
-export function updateFlows(now: number, flows: FlowTx[], transactions: Transaction[], settings: GlobeSettingsState, lastAddRef: MutableRefObject<number>) {
-  const targetCount = renderFlowCount(settings)
-  const activeTransactions = transactions.slice(0, targetCount)
-  const activeIds = new Set(activeTransactions.map((tx) => tx.id))
-  const transactionById = new Map(activeTransactions.map((tx) => [tx.id, tx]))
+export function updateFlows(now: number, flows: FlowTx[], lookup: FlowTransactionLookup, settings: GlobeSettingsState, lastAddRef: MutableRefObject<number>) {
+  const activeTransactions = lookup.activeTransactions
+  const activeIds = lookup.activeIds
+  const transactionById = lookup.transactionById
 
   for (const flow of flows) {
     if (!activeIds.has(flow.id) && flow.phase !== "fading") {
