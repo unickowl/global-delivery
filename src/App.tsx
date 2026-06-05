@@ -15,7 +15,15 @@ import { FuturisticPanel, FuturisticPanelProvider, useBoot } from "./components/
 import { transactions as baseTransactions, type Transaction } from "./data/transactions"
 import { useLiveDashboard } from "./hooks/useLiveDashboard"
 import { createTransactionSource } from "./services/transactions"
-import { cn, formatCompactMoney, formatEta, formatMoney } from "./lib/utils"
+import { cn, formatCompactMoney, formatMoney } from "./lib/utils"
+import {
+  deriveMonitorMetrics,
+  formatAge,
+  stablecoinLeg,
+  type MonitorMetrics,
+  type MixSlice,
+  type ThroughputBucket,
+} from "./services/transactions/monitorMetrics"
 import { usePersistentState } from "./lib/usePersistentState"
 import { TerminalBoot } from "./components/TerminalBoot"
 import { Auth } from "./components/Auth"
@@ -24,6 +32,7 @@ type Mode = "monitor" | "focus"
 
 const transactionSource = createTransactionSource()
 const USE_AUTH = import.meta.env.VITE_TRANSACTION_SOURCE === "owlpay"
+const SIMULATING = import.meta.env.VITE_OWLPAY_SIMULATE === "1"
 
 export const FLIGHT_DURATION = 6400
 const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$#%·→/"
@@ -92,15 +101,6 @@ export function StartupLoading({
   )
 }
 
-function Metric({ label, value, accent }: { label: string; value: string; accent?: string }) {
-  return (
-    <div className="metric-item">
-      <div className="hud-label">{label}</div>
-      <div className="metric-val" style={accent ? { color: accent } : undefined}>{value}</div>
-    </div>
-  )
-}
-
 function ScrambleText({ value }: { value: string | number }) {
   const target = String(value)
   const [display, setDisplay] = useState(target)
@@ -152,9 +152,9 @@ function TransactionRow({
   onClick: () => void
   revealDelay: number
 }) {
-  const stablePoint = transaction.source.chain ? transaction.source : transaction.target.chain ? transaction.target : null
-  const stableLabel = stablePoint ? `${stablePoint.currency}/${stablePoint.chain}` : transaction.target.currency
-  const directionLabel = transaction.direction === "on-ramp" ? "DEPOSIT" : "WITHDRAW"
+  const directionLabel = transaction.direction === "on-ramp" ? "ON-RAMP" : "OFF-RAMP"
+  const ageSec = transaction.createdAt ? (Date.now() - new Date(transaction.createdAt).getTime()) / 1000 : null
+  const stable = stablecoinLeg(transaction)
 
   return (
     <button
@@ -176,10 +176,10 @@ function TransactionRow({
       </div>
       <div className="tx-meta-line">
         <span>{transaction.source.currency} → {transaction.target.currency}</span>
-        <span>{stableLabel}</span>
+        <span>{stable ? stable.symbol : "FIAT"}</span>
       </div>
       <div className="tx-meta-line">
-        <span>{transaction.rail}</span>
+        <span>{transaction.rail} · {formatAge(ageSec)} ago</span>
         <span>{formatCompactMoney(Math.max(transaction.source.amount, transaction.target.amount))}</span>
       </div>
     </button>
@@ -187,16 +187,16 @@ function TransactionRow({
 }
 
 function FocusTelemetry({ transaction, forceCollapsed }: { transaction: Transaction; forceCollapsed?: boolean }) {
-  const stablePoint = transaction.source.chain ? transaction.source : transaction.target.chain ? transaction.target : null
-  const stableLabel = stablePoint ? `${stablePoint.currency}/${stablePoint.chain}` : "FIAT"
-  const directionLabel = transaction.direction === "on-ramp" ? "DEPOSIT" : "WITHDRAW"
+  const stable = stablecoinLeg(transaction)
+  const stableLabel = stable ? stable.symbol : "FIAT"
+  const directionLabel = transaction.direction === "on-ramp" ? "ON-RAMP" : "OFF-RAMP"
   const amount = Math.max(transaction.source.amount, transaction.target.amount)
   const items = [
     ["FLOW", `${directionLabel} · ${transaction.source.currency} → ${transaction.target.currency}`],
     ["STABLECOIN", stableLabel],
     ["RAIL", transaction.rail],
     ["AMOUNT", formatCompactMoney(amount)],
-    ["FX / FEE", `${transaction.exchangeRate} · ${transaction.fee > 0 ? formatMoney(transaction.fee, "USD") : "—"}`],
+    ["FX*", `${transaction.exchangeRate}`],
   ]
 
   return (
@@ -234,189 +234,108 @@ function PanelLoading({ label = "loading new data" }: { label?: string }) {
   )
 }
 
-type VolumePoint = {
-  label: string
-  deposit: number
-  withdraw: number
-  total: number
-}
-
-type MixItem = {
-  name: string
-  count: number
-  failed: number
-  pct: number
-}
-
-function parseEtaSeconds(value: string) {
-  const [minutes = "0", seconds = "0"] = value.split(":")
-  return Number(minutes) * 60 + Number(seconds)
-}
-
-function stablePointOf(transaction: Transaction) {
-  return transaction.source.chain ? transaction.source : transaction.target.chain ? transaction.target : null
-}
-
-function deriveVolumeSeries(transactions: Transaction[], buckets = 12): VolumePoint[] {
-  const recent = transactions.slice(0, buckets * 8).reverse()
-  return Array.from({ length: buckets }, (_, index) => {
-    const chunkSize = Math.max(1, Math.ceil(recent.length / buckets))
-    const chunk = recent.slice(index * chunkSize, (index + 1) * chunkSize)
-    const deposit = chunk.filter((tx) => tx.direction === "on-ramp").length
-    const withdraw = chunk.filter((tx) => tx.direction === "off-ramp").length
-    return {
-      label: `T-${buckets - index}`,
-      deposit,
-      withdraw,
-      total: deposit + withdraw,
-    }
-  })
-}
-
-function deriveMixItems(transactions: Transaction[], key: "chain" | "asset", limit = 4): MixItem[] {
-  const counts = new Map<string, { count: number; failed: number }>()
-  for (const tx of transactions) {
-    const stable = stablePointOf(tx)
-    const name = key === "chain" ? stable?.chain ?? "FIAT" : stable?.currency ?? tx.target.currency
-    const current = counts.get(name) ?? { count: 0, failed: 0 }
-    current.count += 1
-    if (tx.status === "failed") current.failed += 1
-    counts.set(name, current)
-  }
-
-  const total = Math.max(1, transactions.length)
-  return Array.from(counts.entries())
-    .map(([name, item]) => ({ name, count: item.count, failed: item.failed, pct: (item.count / total) * 100 }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit)
-}
-
-function FlowHealthCard({
-  transactions,
-  medianSettlementSeconds,
-}: {
-  transactions: Transaction[]
-  medianSettlementSeconds: number | null
-}) {
-  const settled = transactions.filter((tx) => tx.status === "settled").length
-  const failed = transactions.filter((tx) => tx.status === "failed").length
-  const pending = transactions.filter((tx) => tx.status === "pending").length
-  const routing = transactions.filter((tx) => tx.status === "routing").length
-  const total = Math.max(1, transactions.length)
-  const successRate = (settled / total) * 100
-  const failureRate = (failed / total) * 100
-  const p95Eta = transactions
-    .map((tx) => parseEtaSeconds(tx.eta))
-    .sort((a, b) => a - b)[Math.min(transactions.length - 1, Math.floor(total * 0.95))] ?? 0
-  const state = failureRate > 5 ? "ALERT" : pending + routing > settled * 0.5 ? "DEGRADED" : "OK"
-
+function RampSplit({ on, off }: { on: number; off: number }) {
+  const total = Math.max(1, on + off)
+  const onPct = (on / total) * 100
+  const offPct = 100 - onPct
   return (
-    <div className={cn("dash-card-inner", `dash-state-${state.toLowerCase()}`)}>
-      <div className="dash-card-head">
-        <span>Flow Health</span>
-        <strong>{state}</strong>
+    <div className="metric-item">
+      <div className="hud-label">On / Off-Ramp</div>
+      <div className="rg-track">
+        <div className="rg-seg rg-on" style={{ width: `${onPct}%` }} />
+        <div className="rg-seg rg-off" style={{ width: `${offPct}%` }} />
+        <div className="rg-node" style={{ left: `${onPct}%` }} />
       </div>
-      <div className="health-readout">
-        <span>{successRate.toFixed(1)}%</span>
-        <small>success</small>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, letterSpacing: "0.04em" }}>
+        <span style={{ color: "var(--hud-green)" }}>ON {on} · {Math.round(onPct)}%</span>
+        <span style={{ color: "var(--hud-cyan)" }}>OFF {off} · {Math.round(offPct)}%</span>
       </div>
+    </div>
+  )
+}
+
+function ThroughputSpark({ series }: { series: ThroughputBucket[] }) {
+  const max = Math.max(1, ...series.map((p) => p.total))
+  const line = series
+    .map((p, i) => `${series.length <= 1 ? 0 : (i / (series.length - 1)) * 100},${(38 - (p.total / max) * 34).toFixed(2)}`)
+    .join(" ")
+  return (
+    <svg className="volume-spark" viewBox="0 0 100 42" preserveAspectRatio="none" aria-hidden>
+      <polyline className="volume-gridline" points="0,38 100,38" />
+      <polyline className="volume-line" points={line} />
+      {series.map((p, i) => {
+        const x = series.length <= 1 ? 0 : (i / (series.length - 1)) * 100
+        const onH = (p.onRamp / max) * 24
+        const offH = (p.offRamp / max) * 24
+        return (
+          <g key={i}>
+            <rect className="volume-bar-deposit" x={x - 1.1} y={38 - onH} width="1.2" height={onH} />
+            <rect className="volume-bar-withdraw" x={x + 0.3} y={38 - offH} width="1.2" height={offH} />
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+function QuoteHealthCard({ metrics }: { metrics: MonitorMetrics }) {
+  const conv = metrics.conversionPct.toFixed(0)
+  const healthState = metrics.pending > metrics.paid ? "BUSY" : metrics.pending + metrics.locked > metrics.paid * 0.5 ? "ACTIVE" : "OK"
+  return (
+    <div className={cn("dash-card-inner", `dash-state-${healthState.toLowerCase()}`)}>
+      <div className="dash-card-head"><span>Quote Health</span><strong>{healthState}</strong></div>
+      <div className="health-readout"><span>{conv}%</span><small>paid</small></div>
       <div className="status-bars" aria-hidden>
         {[
-          ["settled", settled, "var(--hud-green)"],
-          ["routing", routing, "var(--hud-cyan)"],
-          ["pending", pending, "var(--hud-yellow)"],
-          ["failed", failed, "var(--hud-red)"],
+          ["settled", metrics.paid, "var(--hud-green)"],
+          ["routing", metrics.locked, "var(--hud-cyan)"],
+          ["pending", metrics.pending, "var(--hud-yellow)"],
         ].map(([name, value, color]) => (
-          <div className="status-bar-row" key={name}>
+          <div className="status-bar-row" key={name as string}>
             <span>{name}</span>
-            <i><b style={{ width: `${(Number(value) / total) * 100}%`, background: color }} /></i>
+            <i><b style={{ width: `${(Number(value) / Math.max(1, metrics.total)) * 100}%`, background: color as string, color: color as string }} /></i>
             <em>{value}</em>
           </div>
         ))}
       </div>
       <div className="dash-mini-grid">
-        <span><b>AVG</b>{medianSettlementSeconds != null ? formatEta(medianSettlementSeconds) : "—"}</span>
-        <span><b>P95</b>—</span>
+        <span><b>BACKLOG</b>{formatAge(metrics.oldestPendingAgeSec)}</span>
+        <span><b>PEND</b>{metrics.pending}</span>
       </div>
     </div>
   )
 }
 
-function LiveVolumeCard({
-  series,
-  volume24h,
-}: {
-  series: VolumePoint[]
-  volume24h: number
-}) {
-  const maxTotal = Math.max(1, ...series.map((point) => point.total))
-  const latest = series[series.length - 1] ?? { deposit: 0, withdraw: 0, total: 0 }
-  const points = series
-    .map((point, index) => {
-      const x = series.length <= 1 ? 0 : (index / (series.length - 1)) * 100
-      const y = 38 - (point.total / maxTotal) * 34
-      return `${x.toFixed(2)},${y.toFixed(2)}`
-    })
-    .join(" ")
-
+function ThroughputCard({ metrics }: { metrics: MonitorMetrics }) {
+  const latest = metrics.throughput[metrics.throughput.length - 1] ?? { onRamp: 0, offRamp: 0 }
   return (
     <div className="dash-card-inner">
-      <div className="dash-card-head">
-        <span>Live Volume</span>
-        <strong>{latest.total}/min</strong>
-      </div>
-      <svg className="volume-spark" viewBox="0 0 100 42" preserveAspectRatio="none" aria-hidden>
-        <polyline className="volume-gridline" points="0,38 100,38" />
-        <polyline className="volume-line" points={points} />
-        {series.map((point, index) => {
-          const x = series.length <= 1 ? 0 : (index / (series.length - 1)) * 100
-          const depositHeight = (point.deposit / maxTotal) * 24
-          const withdrawHeight = (point.withdraw / maxTotal) * 24
-          return (
-            <g key={`${point.label}-${index}`}>
-              <rect className="volume-bar-deposit" x={x - 1.1} y={38 - depositHeight} width="1.2" height={depositHeight} />
-              <rect className="volume-bar-withdraw" x={x + 0.3} y={38 - withdrawHeight} width="1.2" height={withdrawHeight} />
-            </g>
-          )
-        })}
-      </svg>
+      <div className="dash-card-head"><span>Throughput</span><strong>{metrics.throughputRate}</strong></div>
+      <ThroughputSpark series={metrics.throughput} />
       <div className="volume-split">
-        <span><i className="deposit-dot" />DEPOSIT {latest.deposit}</span>
-        <span><i className="withdraw-dot" />WITHDRAW {latest.withdraw}</span>
+        <span><i className="deposit-dot" />ON-RAMP {latest.onRamp}</span>
+        <span><i className="withdraw-dot" />OFF-RAMP {latest.offRamp}</span>
       </div>
       <div className="dash-mini-grid">
-        <span><b>24H</b>{formatCompactMoney(volume24h)}</span>
-        <span><b>WINDOW</b>5M</span>
+        <span><b>VOL</b>{formatCompactMoney(metrics.quotedVolume)}</span>
+        <span><b>WINDOW</b>{metrics.spanLabel}</span>
       </div>
     </div>
   )
 }
 
-function ChainAssetMixCard({ chains, assets }: { chains: MixItem[]; assets: MixItem[] }) {
-  const hasChainData = chains.some((c) => c.name !== "FIAT")
+function RailMixCard({ mix }: { mix: MixSlice[] }) {
   return (
     <div className="dash-card-inner">
-      <div className="dash-card-head">
-        <span>Asset Mix</span>
-        <strong>{hasChainData ? chains[0]?.name : assets[0]?.name ?? "—"}</strong>
-      </div>
-      {hasChainData && (
-        <div className="mix-section">
-          <span className="mix-title">CHAIN</span>
-          {chains.map((item) => (
-            <div className="mix-row" key={item.name}>
-              <span>{item.name}</span>
-              <i><b style={{ width: `${item.pct}%` }} />{item.failed > 0 && <em style={{ left: `${Math.min(96, item.pct)}%` }} />}</i>
-              <strong>{Math.round(item.pct)}%</strong>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="asset-strip" aria-label="Stablecoin mix">
-        {assets.map((item) => (
-          <span key={item.name} style={{ flexGrow: Math.max(1, item.count) }}>
-            {item.name}
-          </span>
+      <div className="dash-card-head"><span>Payment Rail</span><strong>{mix[0]?.name ?? "—"}</strong></div>
+      <div className="mix-section">
+        <span className="mix-title">RAIL</span>
+        {mix.map((item) => (
+          <div className="mix-row" key={item.name}>
+            <span>{item.name}</span>
+            <i><b style={{ width: `${item.pct}%` }} /></i>
+            <strong>{Math.round(item.pct)}%</strong>
+          </div>
         ))}
       </div>
     </div>
@@ -592,14 +511,8 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
     },
     [live.transactions, mode, selectedId],
   )
-  const dashboardMetrics = useMemo(
-    () => ({
-      volumeSeries: deriveVolumeSeries(live.transactions),
-      chainMix: deriveMixItems(live.transactions, "chain"),
-      assetMix: deriveMixItems(live.transactions, "asset"),
-    }),
-    [live.transactions],
-  )
+  const metrics = useMemo(() => deriveMonitorMetrics(live.transactions), [live.transactions])
+  const conv = metrics.conversionPct.toFixed(0)
 
   // Focus track: click a transaction row
   const focusTransaction = (tx: Transaction) => {
@@ -663,16 +576,16 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         <FuturisticPanel className="hud-panel panel-system" revealDelay={0} label="FS-00 // CORE" forceCollapsed={cardsCollapsed}>
           <div className="live-dot" />
           <div className="system-text">
-            <strong>OWLPAY</strong> · Global rails online · {live.railUptime.toFixed(2)}%
+            <strong>OWLPAY</strong> · Quote feed live · {metrics.total} tracked · {conv}% paid
           </div>
         </FuturisticPanel>
 
         {/* HUD: Top-right operations status */}
-        <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01 // OPS" forceCollapsed={cardsCollapsed}>
+        <FuturisticPanel className="hud-panel panel-magi" revealDelay={120} label="FS-01 // FLOW" forceCollapsed={cardsCollapsed}>
           {[
-            ["KYT", `${live.transactions.filter((tx) => tx.riskScore >= 30 || tx.status === "failed").length} watch`],
-            ["LIQ", `${Math.max(0, ...live.pools.map((pool) => pool.utilization))}% peak`],
-            ["RAIL", live.transactions.some((tx) => tx.status === "failed") ? `${live.transactions.filter((tx) => tx.status === "failed").length} fail` : "—"],
+            ["PAID", `${metrics.paid} · ${conv}%`],
+            ["LOCKED", `${metrics.locked} in-flight`],
+            ["PENDING", `${metrics.pending} waiting`],
           ].map(([name, value]) => (
             <div className="magi-node" key={name}>
               <span className="magi-name">{name}</span>
@@ -683,28 +596,28 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
 
         {/* HUD: Left metrics */}
         <FuturisticPanel className="hud-panel panel-metrics" revealDelay={200} label="FS-02 // LOAD" forceCollapsed={cardsCollapsed}>
-          <div className="hud-label">Network Load</div>
+          <div className="hud-label">Quoted Volume · {metrics.spanLabel}</div>
           <div className="metric-item">
-            <div className="metric-val">{formatCompactMoney(live.volume24h)}</div>
-            {live.volumeChange != null && (
-              <div className="metric-change">{live.volumeChange >= 0 ? "+" : ""}{live.volumeChange.toFixed(1)}% ▲</div>
-            )}
+            <div className="metric-val">{formatCompactMoney(metrics.quotedVolume)}</div>
           </div>
-          <Metric label="Settlement" value={live.medianSettlementSeconds != null ? formatEta(live.medianSettlementSeconds) : "—"} />
-          <Metric label="Active Flows" value={live.activeFlows.toString()} accent="var(--hud-green)" />
+          <RampSplit on={metrics.onRamp} off={metrics.offRamp} />
+          <div className="metric-item">
+            <div className="hud-label">Throughput</div>
+            <div className="metric-val" style={{ color: "var(--hud-green)" }}>{metrics.throughputRate}</div>
+          </div>
         </FuturisticPanel>
 
         {/* HUD: Left-bottom liquidity */}
-        <FuturisticPanel className="hud-panel panel-liquidity" revealDelay={280} label="FS-03 // LIQ" forceCollapsed={cardsCollapsed}>
-          <div className="hud-label">Liquidity Pools</div>
-          {live.pools.map((pool) => (
-            <div className="pool-item" key={pool.name}>
+        <FuturisticPanel className="hud-panel panel-liquidity" revealDelay={280} label="FS-03 // CORRIDORS" forceCollapsed={cardsCollapsed}>
+          <div className="hud-label">Top Corridors</div>
+          {metrics.corridors.map((c) => (
+            <div className="pool-item" key={c.key}>
               <div className="pool-name">
-                <span>{pool.name}</span>
-                <span>{pool.utilization}%</span>
+                <span>{c.from} → {c.to}</span>
+                <span>{c.count}</span>
               </div>
               <div className="pool-bar-bg">
-                <div className="pool-bar-fill" style={{ width: `${pool.utilization}%` }} />
+                <div className="pool-bar-fill" style={{ width: `${c.pct}%` }} />
               </div>
             </div>
           ))}
@@ -715,7 +628,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
           {({ active, loading }) => (
             loading ? <PanelLoading label="syncing queue" /> : active ? (
               <>
-                <div className="hud-label">Transaction Queue</div>
+                <div className="hud-label">Quote Queue</div>
                 <div className="tx-list-scroll">
                   {live.transactions.slice(0, globeSettings.transactionListSize).map((tx, i) => (
                     <TransactionRow
@@ -737,13 +650,13 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
         {mode === "monitor" && (
           <div className="dashboard-rail" aria-label="Operational dashboard charts">
             <FuturisticPanel className="hud-panel panel-dashboard-card panel-flow-health" revealDelay={520} label="FS-06 // HEALTH" forceCollapsed={cardsCollapsed}>
-              {({ active, loading }) => loading ? <PanelLoading label="loading health" /> : active ? <FlowHealthCard transactions={live.transactions} medianSettlementSeconds={live.medianSettlementSeconds} /> : null}
+              {({ active, loading }) => loading ? <PanelLoading label="loading health" /> : active ? <QuoteHealthCard metrics={metrics} /> : null}
             </FuturisticPanel>
-            <FuturisticPanel className="hud-panel panel-dashboard-card panel-live-volume" revealDelay={600} label="FS-07 // VOLUME" forceCollapsed={cardsCollapsed} scanning>
-              {({ active, loading }) => loading ? <PanelLoading label="loading volume" /> : active ? <LiveVolumeCard series={dashboardMetrics.volumeSeries} volume24h={live.volume24h} /> : null}
+            <FuturisticPanel className="hud-panel panel-dashboard-card panel-live-volume" revealDelay={600} label="FS-07 // THROUGHPUT" forceCollapsed={cardsCollapsed} scanning>
+              {({ active, loading }) => loading ? <PanelLoading label="loading throughput" /> : active ? <ThroughputCard metrics={metrics} /> : null}
             </FuturisticPanel>
-            <FuturisticPanel className="hud-panel panel-dashboard-card panel-chain-mix" revealDelay={680} label="FS-08 // MIX" forceCollapsed={cardsCollapsed}>
-              {({ active, loading }) => loading ? <PanelLoading label="loading mix" /> : active ? <ChainAssetMixCard chains={dashboardMetrics.chainMix} assets={dashboardMetrics.assetMix} /> : null}
+            <FuturisticPanel className="hud-panel panel-dashboard-card panel-chain-mix" revealDelay={680} label="FS-08 // RAILS" forceCollapsed={cardsCollapsed}>
+              {({ active, loading }) => loading ? <PanelLoading label="loading rails" /> : active ? <RailMixCard mix={metrics.railMix} /> : null}
             </FuturisticPanel>
           </div>
         )}
@@ -772,20 +685,20 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
               </div>
               <div className="detail-stats">
                 <div className="detail-stat">
-                  <span className="ds-label">FX</span>
-                  <span className="ds-val"><ScrambleText value={selected.exchangeRate} /></span>
+                  <span className="ds-label">STABLE</span>
+                  <span className="ds-val">{stablecoinLeg(selected)?.symbol ?? "—"}</span>
                 </div>
                 <div className="detail-stat">
-                  <span className="ds-label">FEE</span>
-                  <span className="ds-val">{selected.fee > 0 ? <ScrambleText value={formatMoney(selected.fee, "USD")} /> : "—"}</span>
+                  <span className="ds-label">FX*</span>
+                  <span className="ds-val"><ScrambleText value={selected.exchangeRate} /></span>
                 </div>
                 <div className="detail-stat">
                   <span className="ds-label">RAIL</span>
                   <span className="ds-val"><ScrambleText value={selected.rail} /></span>
                 </div>
                 <div className="detail-stat">
-                  <span className="ds-label">RISK</span>
-                  <span className="ds-val">—</span>
+                  <span className="ds-label">STATUS</span>
+                  <span className="ds-val">{selected.status}</span>
                 </div>
               </div>
             </>
@@ -794,6 +707,7 @@ function MonitorApp({ globeSettings }: { globeSettings: GlobeSettingsState }) {
 
         <ReplayButton onReplay={resetGlobeView} />
         <PanelCollapseButton collapsed={cardsCollapsed} onToggle={() => setCardsCollapsed((value) => !value)} />
+        {SIMULATING && <div className="sim-badge">SIM</div>}
 
       </main>
     </FuturisticPanelProvider>
