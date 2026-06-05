@@ -31,7 +31,9 @@ export interface FuturisticPanelProps extends Omit<HTMLAttributes<HTMLDivElement
   disableBorder?: boolean
   /** Which corners to render as filled triangles. */
   corners?: CornerKey[]
-  /** Stenciled station ID rendered near the top-left corner (e.g. "FS-01"). */
+  /** Primary descriptive label shown at the top of the panel (e.g. "OPS STATUS"). */
+  category?: string
+  /** Secondary station ID shown below category (e.g. "FS-01"). */
   label?: string
   /** Show a vertical scan beam that loops while the panel is visible. */
   scanning?: boolean
@@ -85,6 +87,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     disableCorner = false,
     disableBorder = true,
     corners = ["lt", "rb"],
+    category,
     label,
     scanning = false,
     forceCollapsed,
@@ -136,7 +139,7 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
     const panel = sizeRef.current
     if (!panel || !label || !storageKey) return
 
-    const handle = panel.querySelector<HTMLElement>(".fp-label")
+    const handle = panel.querySelector<HTMLElement>(".fp-label-group")
     if (!handle) return
 
     const applyDrag = () => {
@@ -511,7 +514,17 @@ export const FuturisticPanel = forwardRef<HTMLDivElement, FuturisticPanelProps>(
           selected={state === "selected"}
         />
       )}
-      {label && <span className="fp-label" aria-hidden>{label}</span>}
+      {(category || label) && (
+        <div className="fp-label-group" aria-hidden>
+          <div className="fp-grip">
+            <span /><span /><span />
+          </div>
+          <div className="fp-label-text">
+            {category && <span className="fp-cat">{category}</span>}
+            {label && <span className="fp-num">{label}</span>}
+          </div>
+        </div>
+      )}
       {scanning && state !== "hidden" && !isCollapsed && <span className="fp-scan-beam" aria-hidden />}
       {resolvedChildren}
     </div>
